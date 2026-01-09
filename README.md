@@ -29,8 +29,10 @@ AIファシリテーターが支援する、大人数向けブレインストー
 
 ## 🚀 デモ
 
-GitHub Pagesでデモを確認できます（公開している場合）：
+GitHub Pagesでデモを確認できます：
 👉 [デモを見る](https://samboofficeota-hue.github.io/brainstormer/brainstorm-app.html)
+
+> **注意**: GitHub Pagesを有効にするには、リポジトリの Settings → Pages で設定してください。
 
 ## 💾 インストール
 
