@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, Brain, Send, Mic, Play, Pause, RotateCcw } from './components/Icons';
+import { Users, Brain, Send, Mic, Play, Pause, RotateCcw, Video, Copy, Link } from './components/Icons';
 
 // ステージの定義
 const STAGES = {
@@ -637,25 +637,82 @@ JSONのみを返し、他の説明は不要です。`
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-6">
         <div className="max-w-6xl mx-auto">
+          {/* セッション情報バー */}
           <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">{topic}</h2>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* 左側: お題と役割 */}
+              <div className="flex-1 min-w-[300px]">
+                <div className="flex items-center gap-3 mb-2">
+                  <h2 className="text-3xl font-bold text-gray-900">{topic}</h2>
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                    role === ROLES.HOST 
+                      ? 'bg-orange-100 text-orange-800' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {role === ROLES.HOST ? '🎯 ホスト' : '👥 ゲスト'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <Users size={16} />
                     <span>{currentUser.name}</span>
                   </div>
+                  {topicDescription && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">|</span>
+                      <span className="truncate max-w-xs">{topicDescription}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               
+              {/* 中央: 参加者とGoogle Meet */}
               <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-orange-600">{formatTime(timeRemaining)}</div>
-                  <div className="text-sm text-gray-600">残り時間</div>
+                {/* 参加者リスト（将来のリアルタイム同期用） */}
+                <div className="bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="text-xs text-gray-500 mb-1">参加者</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex -space-x-2">
+                      <div className="w-8 h-8 rounded-full bg-orange-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold">
+                        {currentUser.name.charAt(0)}
+                      </div>
+                      {/* 他の参加者のアバター（将来実装） */}
+                      <div className="w-8 h-8 rounded-full bg-blue-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold opacity-50">
+                        +
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">1人</span>
+                  </div>
                 </div>
+
+                {/* Google Meetボタン */}
+                <button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2">
+                  <Video size={20} />
+                  <span>Meet参加</span>
+                </button>
+              </div>
+
+              {/* 右側: タイマー */}
+              <div className="text-center bg-gradient-to-br from-orange-50 to-rose-50 rounded-xl px-6 py-3">
+                <div className="text-4xl font-bold text-orange-600">{formatTime(timeRemaining)}</div>
+                <div className="text-xs text-gray-600 mt-1">残り時間</div>
               </div>
             </div>
+
+            {/* セッション共有バー（ホストのみ表示） */}
+            {role === ROLES.HOST && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 bg-gray-50 rounded-lg px-4 py-2 font-mono text-sm text-gray-600">
+                    セッションID: SESSION-{Date.now().toString().slice(-6)}
+                  </div>
+                  <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-all flex items-center gap-2">
+                    <Copy size={16} />
+                    招待リンクをコピー
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-3xl shadow-lg p-6 mb-6" style={{ height: 'calc(100vh - 400px)' }}>
@@ -784,9 +841,19 @@ JSONのみを返し、他の説明は不要です。`
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-8">
         <div className="max-w-4xl mx-auto animate-fadeIn">
           <div className="bg-white rounded-3xl shadow-2xl p-10">
-            <h2 className="text-4xl font-bold mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              リアルディスカッション
-            </h2>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                リアルディスカッション
+              </h2>
+              {/* Google Meetボタン（大きめ） */}
+              <button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-3">
+                <Video size={32} />
+                <div className="text-left">
+                  <div>Google Meet</div>
+                  <div className="text-xs opacity-90">オンライン会議中</div>
+                </div>
+              </button>
+            </div>
 
             <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-8 mb-8">
               <div className="flex items-center justify-between mb-6">
