@@ -40,6 +40,19 @@ npm-debug.log*
 .env.local
 .env.*.local
 
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+dist/
+build/
+
+# Backup files
+*.backup
+
 # Temporary files
 *.tmp
 *.temp
