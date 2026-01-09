@@ -36,21 +36,34 @@ GitHub Pagesでデモを確認できます：
 
 ## 💾 インストール
 
-### 方法1: 直接ダウンロード
+### 必要な環境
 
-1. このリポジトリをダウンロード（緑の「Code」ボタン → 「Download ZIP」）
-2. ZIPファイルを解凍
-3. `brainstorm-app.html` をブラウザで開く
+- Node.js (v18以上推奨)
+- npm または yarn
 
-### 方法2: Git Clone
+### インストール手順
 
 ```bash
+# リポジトリをクローン
 git clone https://github.com/samboofficeota-hue/brainstormer.git
 cd brainstormer
-open brainstorm-app.html  # macOS
-# または
-start brainstorm-app.html  # Windows
+
+# 依存関係をインストール
+npm install
+
+# .env ファイルを作成（重要！）
+cp .env.example .env
+# .env ファイルを開いて、あなたのAnthropic APIキーを設定してください
+
+# 開発サーバーを起動
+npm run dev
 ```
+
+### APIキーの取得
+
+1. [Anthropic Console](https://console.anthropic.com/) にアクセス
+2. APIキーを作成
+3. `.env` ファイルに `VITE_ANTHROPIC_API_KEY=your-api-key` として設定
 
 ## 主な機能
 
@@ -122,6 +135,7 @@ start brainstorm-app.html  # Windows
 ## 🛠️ 技術仕様
 
 ### 使用技術
+- **ビルドツール**: Vite 6 ⚡
 - **フロントエンド**: React 18 ⚛️
 - **スタイリング**: Tailwind CSS 🎨
 - **AI**: Anthropic Claude API (Claude Sonnet 4) 🤖
@@ -132,8 +146,32 @@ start brainstorm-app.html  # Windows
 - **音声認識**: Chrome, Edge, Safari（最新版）
 - **JavaScript**: 有効にする必要があります
 
+### プロジェクト構造
+```
+brainstorm-app/
+├── src/
+│   ├── App.jsx              # メインアプリケーション
+│   ├── main.jsx            # エントリーポイント
+│   ├── index.css           # スタイル
+│   └── components/
+│       └── Icons.jsx       # アイコンコンポーネント
+├── index.html              # HTMLテンプレート
+├── package.json            # 依存関係
+├── vite.config.js          # Vite設定
+├── tailwind.config.js      # Tailwind CSS設定
+├── .env                    # 環境変数（APIキー）※Git非管理
+└── .env.example            # 環境変数のテンプレート
+```
+
+### npm スクリプト
+```bash
+npm run dev      # 開発サーバーを起動
+npm run build    # 本番用にビルド
+npm run preview  # ビルドしたアプリをプレビュー
+```
+
 ### API設定
-このアプリケーションはAnthropic APIを使用します。APIキーの設定は不要ですが、ネットワーク接続が必要です。
+このアプリケーションはAnthropic APIを使用します。`.env` ファイルにAPIキーを設定してください。
 
 ## 参考にしたプロジェクト
 
