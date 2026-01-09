@@ -20,11 +20,20 @@ const ROLES = {
   GUEST: 'guest'
 };
 
+// ステージにパスワード入力画面を追加
+const STAGES_WITH_PASSWORD = {
+  ...STAGES,
+  HOST_PASSWORD: 'host_password'
+};
+
 // 環境変数からAPIキーを取得
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 function App() {
   const [stage, setStage] = useState(STAGES.ROLE_SELECT);
+  const [hostPassword, setHostPassword] = useState('');
+  const [passwordAttempt, setPasswordAttempt] = useState('');
+  const [selectedTopicForHostLogin, setSelectedTopicForHostLogin] = useState(null);
   const [role, setRole] = useState(null);
   const [topic, setTopic] = useState('');
   const [topicDescription, setTopicDescription] = useState('');
@@ -377,26 +386,44 @@ JSONのみを返し、他の説明は不要です。`
               {availableTopics.map((topicItem) => (
                 <div
                   key={topicItem.id}
-                  onClick={() => {
-                    setRole(ROLES.GUEST);
-                    setSelectedTopicId(topicItem.id);
-                    setStage(STAGES.GUEST_SELECT);
-                  }}
-                  className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
+                  className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
                 >
                   <div className="mb-4">
                     <div className="text-xs text-orange-600 font-semibold mb-2">📅 {topicItem.createdAt.toLocaleDateString('ja-JP')}</div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors">{topicItem.title}</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{topicItem.title}</h3>
                     <p className="text-sm text-gray-600 line-clamp-2">{topicItem.description}</p>
                   </div>
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                  
+                  <div className="pt-4 border-t border-gray-100 space-y-3">
+                    {/* ホスト名（クリック可能） */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTopicForHostLogin(topicItem);
+                        setStage('host_password');
+                      }}
+                      className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 transition-colors group"
+                    >
                       <span>🎯</span>
-                      <span>{topicItem.host}</span>
-                    </div>
-                    <div className="text-xs font-semibold text-blue-600 group-hover:text-blue-700">
-                      参加する →
-                    </div>
+                      <span className="group-hover:underline">{topicItem.host}</span>
+                      <span className="text-xs text-gray-400 group-hover:text-orange-400">（ホストでログイン）</span>
+                    </button>
+
+                    {/* ゲスト参加ボタン */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRole(ROLES.GUEST);
+                        setSelectedTopicId(topicItem.id);
+                        setTopic(topicItem.title);
+                        setTopicDescription(topicItem.description);
+                        setStage(STAGES.GUEST_SELECT);
+                      }}
+                      className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      <span>👥</span>
+                      <span>参加する</span>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -460,6 +487,109 @@ JSONのみを返し、他の説明は不要です。`
     );
   }
 
+  // ホストパスワード入力画面
+  if (stage === 'host_password') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 p-8 animate-fadeIn flex items-center justify-center">
+        <div className="max-w-md w-full">
+          <div className="bg-white rounded-3xl shadow-2xl p-10">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-orange-400 to-amber-500 rounded-full flex items-center justify-center text-white text-4xl">
+                🔒
+              </div>
+              <h2 className="text-3xl font-bold mb-2 text-gray-900">ホストでログイン</h2>
+              <p className="text-gray-600">
+                {selectedTopicForHostLogin?.title}
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">パスワード</label>
+                <input
+                  type="password"
+                  value={passwordAttempt}
+                  onChange={(e) => setPasswordAttempt(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && passwordAttempt) {
+                      // パスワード確認（仮実装：将来はSupabaseで）
+                      const correctPassword = 'host123'; // デモ用
+                      if (passwordAttempt === correctPassword) {
+                        setRole(ROLES.HOST);
+                        setTopic(selectedTopicForHostLogin.title);
+                        setTopicDescription(selectedTopicForHostLogin.description);
+                        setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host, id: Date.now().toString() });
+                        setStage(STAGES.BRAINSTORM);
+                        setIsTimerActive(true);
+                        setTimeRemaining(600);
+                        setPasswordAttempt('');
+                      } else {
+                        alert('パスワードが正しくありません');
+                        setPasswordAttempt('');
+                      }
+                    }
+                  }}
+                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
+                  placeholder="ホストパスワードを入力"
+                  autoFocus
+                />
+                <div className="mt-2 text-xs text-gray-500">
+                  💡 デモ用パスワード: <code className="bg-gray-100 px-2 py-1 rounded">host123</code>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    setStage(STAGES.ROLE_SELECT);
+                    setPasswordAttempt('');
+                    setSelectedTopicForHostLogin(null);
+                  }}
+                  className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-300 transition-all duration-300"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => {
+                    // パスワード確認（仮実装：将来はSupabaseで）
+                    const correctPassword = 'host123'; // デモ用
+                    if (passwordAttempt === correctPassword) {
+                      setRole(ROLES.HOST);
+                      setTopic(selectedTopicForHostLogin.title);
+                      setTopicDescription(selectedTopicForHostLogin.description);
+                      setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host, id: Date.now().toString() });
+                      setStage(STAGES.BRAINSTORM);
+                      setIsTimerActive(true);
+                      setTimeRemaining(600);
+                      setPasswordAttempt('');
+                    } else {
+                      alert('パスワードが正しくありません');
+                      setPasswordAttempt('');
+                    }
+                  }}
+                  disabled={!passwordAttempt}
+                  className="flex-1 py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                >
+                  ログイン
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-orange-50 rounded-xl">
+              <div className="text-sm text-gray-700">
+                <div className="font-semibold mb-1">💡 ヒント</div>
+                <ul className="text-xs space-y-1 text-gray-600">
+                  <li>• ホストとしてログインすると、セッション管理ができます</li>
+                  <li>• パスワードは後でSupabaseで管理予定</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ホスト用セットアップ画面
   if (stage === STAGES.HOST_SETUP) {
     return (
@@ -486,6 +616,27 @@ JSONのみを返し、他の説明は不要です。`
                 className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
                 placeholder="山田太郎"
               />
+            </div>
+
+            {/* ホストパスワード設定 */}
+            <div className="bg-orange-50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">🔒</span>
+                <h3 className="text-lg font-bold text-gray-900">ホストパスワード設定</h3>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">パスワード</label>
+                <input
+                  type="password"
+                  value={hostPassword}
+                  onChange={(e) => setHostPassword(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all"
+                  placeholder="後でホストとしてログインするためのパスワード"
+                />
+                <p className="text-xs text-gray-600 mt-2">
+                  💡 このパスワードで後からセッションに戻れます
+                </p>
+              </div>
             </div>
 
             {/* テーマ */}
@@ -619,15 +770,15 @@ JSONのみを返し、他の説明は不要です。`
               </button>
               <button
                 onClick={() => {
-                  if (topic && currentUser.name && topicBackground && topicCurrentSituation && topicChallenge && selectedDate) {
+                  if (topic && currentUser.name && hostPassword && topicBackground && topicCurrentSituation && topicChallenge && selectedDate) {
                     // ここで Google Calendar & Meet URL を生成（将来実装）
-                    alert(`セッションを作成しました！\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}` : ''}`);
+                    alert(`セッションを作成しました！\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}` : ''}\n\nホストパスワード: ${hostPassword}`);
                     setStage(STAGES.BRAINSTORM);
                     setIsTimerActive(true);
                     setTimeRemaining(600);
                   }
                 }}
-                disabled={!topic || !currentUser.name || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate}
+                disabled={!topic || !currentUser.name || !hostPassword || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate}
                 className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
                 作成してMeet URLを生成
