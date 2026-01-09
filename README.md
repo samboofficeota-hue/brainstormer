@@ -61,9 +61,22 @@ npm run dev
 
 ### APIキーの取得
 
+**Anthropic API:**
 1. [Anthropic Console](https://console.anthropic.com/) にアクセス
 2. APIキーを作成
 3. `.env` ファイルに `VITE_ANTHROPIC_API_KEY=your-api-key` として設定
+
+**Supabase:**
+1. [Supabase](https://supabase.com) でプロジェクトを作成
+2. Project Settings → API から以下を取得：
+   - Project URL
+   - Publishable key (anon key)
+3. `.env` ファイルに設定：
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-publishable-key
+```
+4. SQL Editor で `supabase-schema.sql` を実行してテーブルを作成
 
 ## 主な機能
 
