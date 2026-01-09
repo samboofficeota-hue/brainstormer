@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Users, Brain, Send, Mic, Play, Pause, RotateCcw, Video, Copy, Link } from './components/Icons';
+import { supabase } from './lib/supabase';
 
 // ステージの定義
 const STAGES = {
@@ -42,11 +43,8 @@ function App() {
   const [topicChallenge, setTopicChallenge] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [availableTopics, setAvailableTopics] = useState([
-    { id: '1', title: '地域コミュニティの活性化', description: '地域住民が交流できる新しい仕組みを考えます', host: '山田太郎', createdAt: new Date() },
-    { id: '2', title: '教育現場でのAI活用', description: '学校や教育機関でAIを効果的に使う方法', host: '佐藤花子', createdAt: new Date() },
-    { id: '3', title: '環境に優しい生活習慣', description: 'サステナブルな暮らし方のアイデア', host: '鈴木一郎', createdAt: new Date() }
-  ]);
+  const [availableTopics, setAvailableTopics] = useState([]);
+  const [isLoadingTopics, setIsLoadingTopics] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
   const [messages, setMessages] = useState([]);
@@ -89,6 +87,38 @@ function App() {
   };
 
   const thursdaySchedule = generateThursdaySchedule();
+
+  // Supabaseからセッション一覧を取得
+  useEffect(() => {
+    fetchSessions();
+  }, []);
+
+  const fetchSessions = async () => {
+    try {
+      setIsLoadingTopics(true);
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('status', 'upcoming')
+        .order('scheduled_date', { ascending: true });
+
+      if (error) {
+        console.error('Supabaseからのデータ取得エラー:', error);
+        // エラー時はダミーデータを表示
+        setAvailableTopics([
+          { id: '1', title: '地域コミュニティの活性化', description: '地域住民が交流できる新しい仕組みを考えます', host_name: '山田太郎', created_at: new Date().toISOString() },
+          { id: '2', title: '教育現場でのAI活用', description: '学校や教育機関でAIを効果的に使う方法', host_name: '佐藤花子', created_at: new Date().toISOString() },
+          { id: '3', title: '環境に優しい生活習慣', description: 'サステナブルな暮らし方のアイデア', host_name: '鈴木一郎', created_at: new Date().toISOString() }
+        ]);
+      } else {
+        setAvailableTopics(data || []);
+      }
+    } catch (err) {
+      console.error('セッション取得エラー:', err);
+    } finally {
+      setIsLoadingTopics(false);
+    }
+  };
 
   useEffect(() => {
     let interval;
@@ -383,50 +413,71 @@ JSONのみを返し、他の説明は不要です。`
             </div>
             
             <div className="grid md:grid-cols-3 gap-6 mb-8">
-              {availableTopics.map((topicItem) => (
-                <div
-                  key={topicItem.id}
-                  className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="mb-4">
-                    <div className="text-xs text-orange-600 font-semibold mb-2">📅 {topicItem.createdAt.toLocaleDateString('ja-JP')}</div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{topicItem.title}</h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">{topicItem.description}</p>
-                  </div>
-                  
-                  <div className="pt-4 border-t border-gray-100 space-y-3">
-                    {/* ホスト名（クリック可能） */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedTopicForHostLogin(topicItem);
-                        setStage('host_password');
-                      }}
-                      className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 transition-colors group"
-                    >
-                      <span>🎯</span>
-                      <span className="group-hover:underline">{topicItem.host}</span>
-                      <span className="text-xs text-gray-400 group-hover:text-orange-400">（ホストでログイン）</span>
-                    </button>
-
-                    {/* ゲスト参加ボタン */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRole(ROLES.GUEST);
-                        setSelectedTopicId(topicItem.id);
-                        setTopic(topicItem.title);
-                        setTopicDescription(topicItem.description);
-                        setStage(STAGES.GUEST_SELECT);
-                      }}
-                      className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2"
-                    >
-                      <span>👥</span>
-                      <span>参加する</span>
-                    </button>
-                  </div>
+              {isLoadingTopics ? (
+                // ローディング表示
+                <div className="col-span-3 text-center py-12">
+                  <div className="inline-block w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600">お題を読み込み中...</p>
                 </div>
-              ))}
+              ) : availableTopics.length === 0 ? (
+                // データがない場合
+                <div className="col-span-3 text-center py-12 bg-white rounded-2xl">
+                  <div className="text-6xl mb-4">📋</div>
+                  <p className="text-xl text-gray-700 mb-2">まだお題がありません</p>
+                  <p className="text-sm text-gray-500">ホストとして最初のお題を作成しましょう！</p>
+                </div>
+              ) : (
+                availableTopics.map((topicItem) => {
+                  const displayDate = topicItem.scheduled_date 
+                    ? new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP')
+                    : new Date(topicItem.created_at).toLocaleDateString('ja-JP');
+                  
+                  return (
+                    <div
+                      key={topicItem.id}
+                      className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
+                    >
+                      <div className="mb-4">
+                        <div className="text-xs text-orange-600 font-semibold mb-2">📅 {displayDate}</div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">{topicItem.title}</h3>
+                        <p className="text-sm text-gray-600 line-clamp-2">{topicItem.description}</p>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-gray-100 space-y-3">
+                        {/* ホスト名（クリック可能） */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTopicForHostLogin(topicItem);
+                            setStage('host_password');
+                          }}
+                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 transition-colors group"
+                        >
+                          <span>🎯</span>
+                          <span className="group-hover:underline">{topicItem.host_name}</span>
+                          <span className="text-xs text-gray-400 group-hover:text-orange-400">（ホストでログイン）</span>
+                        </button>
+
+                        {/* ゲスト参加ボタン */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRole(ROLES.GUEST);
+                            setSelectedTopicId(topicItem.id);
+                            setTopic(topicItem.title);
+                            setTopicDescription(topicItem.description);
+                            setStage(STAGES.GUEST_SELECT);
+                          }}
+                          className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2"
+                        >
+                          <span>👥</span>
+                          <span>参加する</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -510,22 +561,40 @@ JSONのみを返し、他の説明は不要です。`
                   type="password"
                   value={passwordAttempt}
                   onChange={(e) => setPasswordAttempt(e.target.value)}
-                  onKeyPress={(e) => {
+                  onKeyPress={async (e) => {
                     if (e.key === 'Enter' && passwordAttempt) {
-                      // パスワード確認（仮実装：将来はSupabaseで）
-                      const correctPassword = 'host123'; // デモ用
-                      if (passwordAttempt === correctPassword) {
-                        setRole(ROLES.HOST);
-                        setTopic(selectedTopicForHostLogin.title);
-                        setTopicDescription(selectedTopicForHostLogin.description);
-                        setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host, id: Date.now().toString() });
-                        setStage(STAGES.BRAINSTORM);
-                        setIsTimerActive(true);
-                        setTimeRemaining(600);
-                        setPasswordAttempt('');
-                      } else {
-                        alert('パスワードが正しくありません');
-                        setPasswordAttempt('');
+                      try {
+                        const { data, error } = await supabase
+                          .from('sessions')
+                          .select('*')
+                          .eq('id', selectedTopicForHostLogin.id)
+                          .single();
+
+                        if (error) {
+                          console.error('セッション取得エラー:', error);
+                          alert('セッション情報の取得に失敗しました');
+                          return;
+                        }
+
+                        if (data.host_password_hash === passwordAttempt) {
+                          setRole(ROLES.HOST);
+                          setTopic(selectedTopicForHostLogin.title);
+                          setTopicDescription(selectedTopicForHostLogin.description);
+                          setTopicBackground(data.background || '');
+                          setTopicCurrentSituation(data.current_situation || '');
+                          setTopicChallenge(data.challenge || '');
+                          setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host_name, id: Date.now().toString() });
+                          setStage(STAGES.BRAINSTORM);
+                          setIsTimerActive(true);
+                          setTimeRemaining(600);
+                          setPasswordAttempt('');
+                        } else {
+                          alert('パスワードが正しくありません');
+                          setPasswordAttempt('');
+                        }
+                      } catch (err) {
+                        console.error('認証エラー:', err);
+                        alert('認証処理でエラーが発生しました');
                       }
                     }
                   }}
@@ -550,21 +619,41 @@ JSONのみを返し、他の説明は不要です。`
                   キャンセル
                 </button>
                 <button
-                  onClick={() => {
-                    // パスワード確認（仮実装：将来はSupabaseで）
-                    const correctPassword = 'host123'; // デモ用
-                    if (passwordAttempt === correctPassword) {
-                      setRole(ROLES.HOST);
-                      setTopic(selectedTopicForHostLogin.title);
-                      setTopicDescription(selectedTopicForHostLogin.description);
-                      setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host, id: Date.now().toString() });
-                      setStage(STAGES.BRAINSTORM);
-                      setIsTimerActive(true);
-                      setTimeRemaining(600);
-                      setPasswordAttempt('');
-                    } else {
-                      alert('パスワードが正しくありません');
-                      setPasswordAttempt('');
+                  onClick={async () => {
+                    try {
+                      // Supabaseでパスワード確認
+                      const { data, error } = await supabase
+                        .from('sessions')
+                        .select('*')
+                        .eq('id', selectedTopicForHostLogin.id)
+                        .single();
+
+                      if (error) {
+                        console.error('セッション取得エラー:', error);
+                        alert('セッション情報の取得に失敗しました');
+                        return;
+                      }
+
+                      // パスワード確認（将来はハッシュ化して比較）
+                      if (data.host_password_hash === passwordAttempt) {
+                        setRole(ROLES.HOST);
+                        setTopic(selectedTopicForHostLogin.title);
+                        setTopicDescription(selectedTopicForHostLogin.description);
+                        setTopicBackground(data.background || '');
+                        setTopicCurrentSituation(data.current_situation || '');
+                        setTopicChallenge(data.challenge || '');
+                        setCurrentUser({ ...currentUser, name: selectedTopicForHostLogin.host_name, id: Date.now().toString() });
+                        setStage(STAGES.BRAINSTORM);
+                        setIsTimerActive(true);
+                        setTimeRemaining(600);
+                        setPasswordAttempt('');
+                      } else {
+                        alert('パスワードが正しくありません');
+                        setPasswordAttempt('');
+                      }
+                    } catch (err) {
+                      console.error('認証エラー:', err);
+                      alert('認証処理でエラーが発生しました');
                     }
                   }}
                   disabled={!passwordAttempt}
@@ -769,13 +858,53 @@ JSONのみを返し、他の説明は不要です。`
                 戻る
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (topic && currentUser.name && hostPassword && topicBackground && topicCurrentSituation && topicChallenge && selectedDate) {
-                    // ここで Google Calendar & Meet URL を生成（将来実装）
-                    alert(`セッションを作成しました！\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}` : ''}\n\nホストパスワード: ${hostPassword}`);
-                    setStage(STAGES.BRAINSTORM);
-                    setIsTimerActive(true);
-                    setTimeRemaining(600);
+                    try {
+                      // Supabaseにセッションを保存
+                      const { data, error } = await supabase
+                        .from('sessions')
+                        .insert([
+                          {
+                            title: topic,
+                            description: `背景: ${topicBackground}\n現状: ${topicCurrentSituation}\n課題: ${topicChallenge}`,
+                            background: topicBackground,
+                            current_situation: topicCurrentSituation,
+                            challenge: topicChallenge,
+                            host_name: currentUser.name,
+                            host_password_hash: hostPassword, // 将来はハッシュ化
+                            scheduled_date: selectedDate,
+                            pdf_url: uploadedFile ? uploadedFile.name : null,
+                            status: 'upcoming'
+                          }
+                        ])
+                        .select()
+                        .single();
+
+                      if (error) {
+                        console.error('セッション作成エラー:', error);
+                        alert('セッションの作成に失敗しました。もう一度お試しください。');
+                        return;
+                      }
+
+                      alert(`セッションを作成しました！✨\n\nタイトル: ${topic}\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}\n` : ''}セッションID: ${data.id}`);
+                      
+                      // トップページに戻る
+                      setStage(STAGES.ROLE_SELECT);
+                      // フォームをリセット
+                      setTopic('');
+                      setTopicBackground('');
+                      setTopicCurrentSituation('');
+                      setTopicChallenge('');
+                      setHostPassword('');
+                      setSelectedDate(null);
+                      setUploadedFile(null);
+                      // お題一覧を再取得
+                      fetchSessions();
+                    } catch (err) {
+                      console.error('予期しないエラー:', err);
+                      alert('予期しないエラーが発生しました。');
+                    }
                   }
                 }}
                 disabled={!topic || !currentUser.name || !hostPassword || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate}
