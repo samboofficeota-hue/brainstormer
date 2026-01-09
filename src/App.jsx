@@ -399,7 +399,7 @@ JSONのみを返し、他の説明は不要です。`
           </div>
 
           <div className="bg-white rounded-3xl shadow-lg p-6">
-            <div className="flex gap-4">
+            <div className="flex gap-4 mb-4">
               <input
                 type="text"
                 value={currentInput}
@@ -415,6 +415,17 @@ JSONのみを返し、他の説明は不要です。`
                 <Send size={24} />
               </button>
             </div>
+            {ideas.length > 0 && (
+              <button
+                onClick={() => {
+                  setIsTimerActive(false);
+                  handleStageComplete();
+                }}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-semibold text-base shadow-md hover:shadow-lg hover:scale-[1.01] transition-all duration-300"
+              >
+                アイデアが揃ったので分析を開始する（{ideas.length}個のアイデア）
+              </button>
+            )}
           </div>
         </div>
       </div>
