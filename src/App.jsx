@@ -47,6 +47,7 @@ function App() {
   const [isLoadingTopics, setIsLoadingTopics] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
+  const [currentParticipantId, setCurrentParticipantId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [timeRemaining, setTimeRemaining] = useState(600);
@@ -91,6 +92,24 @@ function App() {
   // Supabaseからセッション一覧を取得
   useEffect(() => {
     fetchSessions();
+
+    // リアルタイム同期: セッションの変更を監視
+    const sessionsSubscription = supabase
+      .channel('sessions-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'sessions' },
+        (payload) => {
+          console.log('セッション変更検知:', payload);
+          // セッション一覧を再取得
+          fetchSessions();
+        }
+      )
+      .subscribe();
+
+    // クリーンアップ
+    return () => {
+      sessionsSubscription.unsubscribe();
+    };
   }, []);
 
   const fetchSessions = async () => {
@@ -143,6 +162,53 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // リアルタイム同期: アイデアの変更を監視
+  useEffect(() => {
+    if (!selectedTopicId || stage !== STAGES.BRAINSTORM) return;
+
+    const ideasSubscription = supabase
+      .channel(`ideas-${selectedTopicId}`)
+      .on('postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'ideas',
+          filter: `session_id=eq.${selectedTopicId}`
+        },
+        async (payload) => {
+          console.log('新しいアイデア検知:', payload);
+          
+          // 参加者情報を取得
+          const { data: participant } = await supabase
+            .from('participants')
+            .select('name')
+            .eq('id', payload.new.participant_id)
+            .single();
+
+          // 自分が投稿したアイデアは既に表示されているのでスキップ
+          if (payload.new.participant_id === currentParticipantId) return;
+
+          // 他の参加者のアイデアをメッセージとして追加
+          const newMessage = {
+            id: payload.new.id,
+            userId: payload.new.participant_id,
+            userName: participant?.name || '参加者',
+            content: payload.new.content,
+            timestamp: new Date(payload.new.created_at),
+            type: 'user'
+          };
+
+          setMessages((prev) => [...prev, newMessage]);
+          setIdeas((prev) => [...prev, { userId: payload.new.participant_id, content: payload.new.content }]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      ideasSubscription.unsubscribe();
+    };
+  }, [selectedTopicId, stage, currentParticipantId]);
+
   useEffect(() => {
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -171,8 +237,31 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const startBrainstorm = () => {
+  const startBrainstorm = async () => {
     if (topic && currentUser.name) {
+      // 参加者をSupabaseに登録
+      if (selectedTopicId) {
+        try {
+          const { data, error } = await supabase
+            .from('participants')
+            .insert([
+              {
+                session_id: selectedTopicId,
+                name: currentUser.name,
+                role: role || ROLES.GUEST
+              }
+            ])
+            .select()
+            .single();
+
+          if (!error && data) {
+            setCurrentParticipantId(data.id);
+          }
+        } catch (err) {
+          console.error('参加者登録エラー:', err);
+        }
+      }
+      
       setStage(STAGES.BRAINSTORM);
       setIsTimerActive(true);
       setTimeRemaining(600);
@@ -193,7 +282,26 @@ function App() {
 
     setMessages((prev) => [...prev, userMessage]);
     setIdeas((prev) => [...prev, { userId: currentUser.id, content: currentInput }]);
+    
+    const ideaContent = currentInput;
     setCurrentInput('');
+
+    // Supabaseにアイデアを保存（セッションIDがある場合）
+    if (selectedTopicId && currentParticipantId) {
+      try {
+        await supabase
+          .from('ideas')
+          .insert([
+            {
+              session_id: selectedTopicId,
+              participant_id: currentParticipantId,
+              content: ideaContent
+            }
+          ]);
+      } catch (error) {
+        console.error('アイデア保存エラー:', error);
+      }
+    }
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
