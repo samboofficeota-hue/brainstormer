@@ -3,6 +3,9 @@ import { Users, Brain, Send, Mic, Play, Pause, RotateCcw } from './components/Ic
 
 // ステージの定義
 const STAGES = {
+  ROLE_SELECT: 'role_select',
+  HOST_SETUP: 'host_setup',
+  GUEST_SELECT: 'guest_select',
   SETUP: 'setup',
   BRAINSTORM: 'brainstorm',
   AI_ANALYSIS: 'ai_analysis',
@@ -11,12 +14,26 @@ const STAGES = {
   REMAP: 'remap'
 };
 
+// 役割の定義
+const ROLES = {
+  HOST: 'host',
+  GUEST: 'guest'
+};
+
 // 環境変数からAPIキーを取得
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 function App() {
-  const [stage, setStage] = useState(STAGES.SETUP);
+  const [stage, setStage] = useState(STAGES.ROLE_SELECT);
+  const [role, setRole] = useState(null);
   const [topic, setTopic] = useState('');
+  const [topicDescription, setTopicDescription] = useState('');
+  const [availableTopics, setAvailableTopics] = useState([
+    { id: '1', title: '地域コミュニティの活性化', description: '地域住民が交流できる新しい仕組みを考えます', host: '山田太郎', createdAt: new Date() },
+    { id: '2', title: '教育現場でのAI活用', description: '学校や教育機関でAIを効果的に使う方法', host: '佐藤花子', createdAt: new Date() },
+    { id: '3', title: '環境に優しい生活習慣', description: 'サステナブルな暮らし方のアイデア', host: '鈴木一郎', createdAt: new Date() }
+  ]);
+  const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
   const [messages, setMessages] = useState([]);
   const [ideas, setIdeas] = useState([]);
@@ -303,7 +320,271 @@ JSONのみを返し、他の説明は不要です。`
     }
   };
 
-  // セットアップ画面
+  // 役割選択画面
+  if (stage === STAGES.ROLE_SELECT) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 p-8 animate-fadeIn">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-6xl font-bold mb-4 gradient-text">
+              集団ブレインストーミング
+            </h1>
+            <p className="text-xl text-gray-700">AIと共に創造的な議論を</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* ホストカード */}
+            <div 
+              onClick={() => {
+                setRole(ROLES.HOST);
+                setStage(STAGES.HOST_SETUP);
+              }}
+              className="bg-white rounded-3xl shadow-2xl p-10 cursor-pointer hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 group"
+            >
+              <div className="text-center">
+                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-5xl group-hover:scale-110 transition-transform">
+                  🎯
+                </div>
+                <h2 className="text-3xl font-bold mb-4 text-gray-900">ホストで参加</h2>
+                <p className="text-gray-600 text-lg mb-6">
+                  お題を作成して<br />
+                  セッションを開始する
+                </p>
+                <div className="space-y-2 text-sm text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>お題の設定</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>セッション管理</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>結果の確認</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ゲストカード */}
+            <div 
+              onClick={() => {
+                setRole(ROLES.GUEST);
+                setStage(STAGES.GUEST_SELECT);
+              }}
+              className="bg-white rounded-3xl shadow-2xl p-10 cursor-pointer hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 group"
+            >
+              <div className="text-center">
+                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-5xl group-hover:scale-110 transition-transform">
+                  👥
+                </div>
+                <h2 className="text-3xl font-bold mb-4 text-gray-900">ゲストで参加</h2>
+                <p className="text-gray-600 text-lg mb-6">
+                  お題を選んで<br />
+                  ブレインストーミングに参加
+                </p>
+                <div className="space-y-2 text-sm text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>お題の選択</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>アイデア投稿</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✓</span>
+                    <span>議論に参加</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ホスト用セットアップ画面
+  if (stage === STAGES.HOST_SETUP) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-8 animate-fadeIn">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="inline-block px-4 py-2 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold mb-4">
+              🎯 ホストモード
+            </div>
+            <h1 className="text-5xl font-bold mb-4 gradient-text">
+              セッションを作成
+            </h1>
+            <p className="text-lg text-gray-700">お題を設定してセッションを開始しましょう</p>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-2xl p-10 space-y-8">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">あなたの名前（ホスト名）</label>
+              <input
+                type="text"
+                value={currentUser.name}
+                onChange={(e) => setCurrentUser({ ...currentUser, name: e.target.value, id: Date.now().toString() })}
+                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
+                placeholder="山田太郎"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">お題（テーマ）</label>
+              <input
+                type="text"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
+                placeholder="例：地域コミュニティを活性化する新しい施策"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">お題に関する説明</label>
+              <textarea
+                value={topicDescription}
+                onChange={(e) => setTopicDescription(e.target.value)}
+                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg resize-none"
+                rows="4"
+                placeholder="このセッションで考えたいこと、背景、目的などを入力してください"
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => {
+                  setStage(STAGES.ROLE_SELECT);
+                  setRole(null);
+                }}
+                className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-300 transition-all duration-300"
+              >
+                戻る
+              </button>
+              <button
+                onClick={() => {
+                  if (topic && currentUser.name && topicDescription) {
+                    setStage(STAGES.BRAINSTORM);
+                    setIsTimerActive(true);
+                    setTimeRemaining(600);
+                  }
+                }}
+                disabled={!topic || !currentUser.name || !topicDescription}
+                className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+              >
+                セッションを開始
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ゲスト用お題選択画面
+  if (stage === STAGES.GUEST_SELECT) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 p-8 animate-fadeIn">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <div className="inline-block px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-semibold mb-4">
+              👥 ゲストモード
+            </div>
+            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+              お題を選んで参加
+            </h1>
+            <p className="text-lg text-gray-700">参加したいセッションを選択してください</p>
+          </div>
+
+          {/* あなたの名前入力 */}
+          <div className="bg-white rounded-3xl shadow-lg p-6 mb-8">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">あなたの名前</label>
+            <input
+              type="text"
+              value={currentUser.name}
+              onChange={(e) => setCurrentUser({ ...currentUser, name: e.target.value, id: Date.now().toString() })}
+              className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all text-lg"
+              placeholder="山田太郎"
+            />
+          </div>
+
+          {/* お題一覧 */}
+          <div className="space-y-4 mb-8">
+            {availableTopics.map((topicItem) => (
+              <div
+                key={topicItem.id}
+                onClick={() => {
+                  if (currentUser.name) {
+                    setSelectedTopicId(topicItem.id);
+                    setTopic(topicItem.title);
+                    setTopicDescription(topicItem.description);
+                  }
+                }}
+                className={`bg-white rounded-2xl shadow-lg p-6 cursor-pointer transition-all duration-300 ${
+                  selectedTopicId === topicItem.id
+                    ? 'ring-4 ring-blue-500 shadow-xl scale-[1.02]'
+                    : 'hover:shadow-xl hover:scale-[1.01]'
+                } ${!currentUser.name ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-2xl font-bold text-gray-900">{topicItem.title}</h3>
+                  {selectedTopicId === topicItem.id && (
+                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                      ✓
+                    </div>
+                  )}
+                </div>
+                <p className="text-gray-600 mb-4">{topicItem.description}</p>
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <span>🎯</span>
+                    <span>ホスト: {topicItem.host}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span>{topicItem.createdAt.toLocaleDateString('ja-JP')}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ボタン */}
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                setStage(STAGES.ROLE_SELECT);
+                setRole(null);
+                setSelectedTopicId(null);
+              }}
+              className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-300 transition-all duration-300"
+            >
+              戻る
+            </button>
+            <button
+              onClick={() => {
+                if (selectedTopicId && currentUser.name) {
+                  setStage(STAGES.BRAINSTORM);
+                  setIsTimerActive(true);
+                  setTimeRemaining(600);
+                }
+              }}
+              disabled={!selectedTopicId || !currentUser.name}
+              className="flex-1 py-5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+            >
+              ブレインストーミングを開始
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // セットアップ画面（旧バージョン - 念のため残す）
   if (stage === STAGES.SETUP) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-8 animate-fadeIn">
