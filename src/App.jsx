@@ -28,6 +28,11 @@ function App() {
   const [role, setRole] = useState(null);
   const [topic, setTopic] = useState('');
   const [topicDescription, setTopicDescription] = useState('');
+  const [topicBackground, setTopicBackground] = useState('');
+  const [topicCurrentSituation, setTopicCurrentSituation] = useState('');
+  const [topicChallenge, setTopicChallenge] = useState('');
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
   const [availableTopics, setAvailableTopics] = useState([
     { id: '1', title: '地域コミュニティの活性化', description: '地域住民が交流できる新しい仕組みを考えます', host: '山田太郎', createdAt: new Date() },
     { id: '2', title: '教育現場でのAI活用', description: '学校や教育機関でAIを効果的に使う方法', host: '佐藤花子', createdAt: new Date() },
@@ -47,6 +52,34 @@ function App() {
   
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  // 2026年4月〜6月の木曜日12-13時の日程を生成
+  const generateThursdaySchedule = () => {
+    const thursdays = [];
+    const startDate = new Date(2026, 3, 1); // 2026年4月
+    const endDate = new Date(2026, 6, 30); // 2026年6月末
+    
+    let currentDate = new Date(startDate);
+    
+    // 最初の木曜日を見つける
+    while (currentDate.getDay() !== 4) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // 全ての木曜日をリストアップ
+    while (currentDate <= endDate) {
+      thursdays.push({
+        date: new Date(currentDate),
+        formatted: currentDate.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' }),
+        iso: currentDate.toISOString().split('T')[0]
+      });
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+    
+    return thursdays;
+  };
+
+  const thursdaySchedule = generateThursdaySchedule();
 
   useEffect(() => {
     let interval;
@@ -320,11 +353,12 @@ JSONのみを返し、他の説明は不要です。`
     }
   };
 
-  // 役割選択画面
+  // 役割選択画面（トップページ）
   if (stage === STAGES.ROLE_SELECT) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-rose-50 p-8 animate-fadeIn">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
+          {/* ヘッダー */}
           <div className="text-center mb-12">
             <h1 className="text-6xl font-bold mb-4 gradient-text">
               集団ブレインストーミング
@@ -332,74 +366,94 @@ JSONのみを返し、他の説明は不要です。`
             <p className="text-xl text-gray-700">AIと共に創造的な議論を</p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* ホストカード */}
-            <div 
-              onClick={() => {
-                setRole(ROLES.HOST);
-                setStage(STAGES.HOST_SETUP);
-              }}
-              className="bg-white rounded-3xl shadow-2xl p-10 cursor-pointer hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 group"
-            >
-              <div className="text-center">
-                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-5xl group-hover:scale-110 transition-transform">
-                  🎯
-                </div>
-                <h2 className="text-3xl font-bold mb-4 text-gray-900">ホストで参加</h2>
-                <p className="text-gray-600 text-lg mb-6">
-                  お題を作成して<br />
-                  セッションを開始する
-                </p>
-                <div className="space-y-2 text-sm text-gray-500">
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>お題の設定</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>セッション管理</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>結果の確認</span>
-                  </div>
-                </div>
-              </div>
+          {/* お題一覧セクション */}
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-3xl font-bold text-gray-900">📋 開催予定のお題</h2>
+              <span className="text-sm text-gray-500">{availableTopics.length}件のお題</span>
             </div>
+            
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              {availableTopics.map((topicItem) => (
+                <div
+                  key={topicItem.id}
+                  onClick={() => {
+                    setRole(ROLES.GUEST);
+                    setSelectedTopicId(topicItem.id);
+                    setStage(STAGES.GUEST_SELECT);
+                  }}
+                  className="bg-white rounded-2xl shadow-lg p-6 cursor-pointer hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
+                >
+                  <div className="mb-4">
+                    <div className="text-xs text-orange-600 font-semibold mb-2">📅 {topicItem.createdAt.toLocaleDateString('ja-JP')}</div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-orange-600 transition-colors">{topicItem.title}</h3>
+                    <p className="text-sm text-gray-600 line-clamp-2">{topicItem.description}</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>🎯</span>
+                      <span>{topicItem.host}</span>
+                    </div>
+                    <div className="text-xs font-semibold text-blue-600 group-hover:text-blue-700">
+                      参加する →
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-            {/* ゲストカード */}
-            <div 
+          {/* アクションボタンセクション */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* ゲスト参加ボタン */}
+            <button
               onClick={() => {
                 setRole(ROLES.GUEST);
                 setStage(STAGES.GUEST_SELECT);
               }}
-              className="bg-white rounded-3xl shadow-2xl p-10 cursor-pointer hover:shadow-3xl hover:scale-[1.02] transition-all duration-300 group"
+              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
             >
               <div className="text-center">
-                <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-5xl group-hover:scale-110 transition-transform">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
                   👥
                 </div>
-                <h2 className="text-3xl font-bold mb-4 text-gray-900">ゲストで参加</h2>
-                <p className="text-gray-600 text-lg mb-6">
-                  お題を選んで<br />
-                  ブレインストーミングに参加
-                </p>
-                <div className="space-y-2 text-sm text-gray-500">
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>お題の選択</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>アイデア投稿</span>
-                  </div>
-                  <div className="flex items-center justify-center gap-2">
-                    <span>✓</span>
-                    <span>議論に参加</span>
-                  </div>
-                </div>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">ゲストで参加</h3>
+                <p className="text-sm text-gray-600">お題を選んで参加</p>
               </div>
-            </div>
+            </button>
+
+            {/* ホスト作成ボタン */}
+            <button
+              onClick={() => {
+                setRole(ROLES.HOST);
+                setStage(STAGES.HOST_SETUP);
+              }}
+              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
+                  🎯
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">ホストでお題作成</h3>
+                <p className="text-sm text-gray-600">新しいセッションを作成</p>
+              </div>
+            </button>
+
+            {/* 事務局ログインボタン */}
+            <button
+              onClick={() => {
+                alert('事務局ログイン機能は今後実装予定です');
+              }}
+              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-2 border-gray-200"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
+                  🔐
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-gray-900">事務局ログイン</h3>
+                <p className="text-sm text-gray-600">管理者専用</p>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -410,18 +464,19 @@ JSONのみを返し、他の説明は不要です。`
   if (stage === STAGES.HOST_SETUP) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-8 animate-fadeIn">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <div className="inline-block px-4 py-2 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold mb-4">
               🎯 ホストモード
             </div>
             <h1 className="text-5xl font-bold mb-4 gradient-text">
-              セッションを作成
+              お題を作成
             </h1>
             <p className="text-lg text-gray-700">お題を設定してセッションを開始しましょう</p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-2xl p-10 space-y-8">
+            {/* ホスト名 */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-3">あなたの名前（ホスト名）</label>
               <input
@@ -433,8 +488,9 @@ JSONのみを返し、他の説明は不要です。`
               />
             </div>
 
+            {/* テーマ */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">お題（テーマ）</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">テーマ（タイトル）</label>
               <input
                 type="text"
                 value={topic}
@@ -444,18 +500,114 @@ JSONのみを返し、他の説明は不要です。`
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">お題に関する説明</label>
-              <textarea
-                value={topicDescription}
-                onChange={(e) => setTopicDescription(e.target.value)}
-                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg resize-none"
-                rows="4"
-                placeholder="このセッションで考えたいこと、背景、目的などを入力してください"
-              />
+            {/* 補足情報（テンプレート） */}
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">📝</span>
+                <h3 className="text-xl font-bold text-gray-900">補足情報（テンプレート）</h3>
+              </div>
+              
+              {/* 背景 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">背景</label>
+                <textarea
+                  value={topicBackground}
+                  onChange={(e) => setTopicBackground(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                  rows="3"
+                  placeholder="このテーマが生まれた背景や経緯を記入してください"
+                />
+              </div>
+
+              {/* 現状 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">現状</label>
+                <textarea
+                  value={topicCurrentSituation}
+                  onChange={(e) => setTopicCurrentSituation(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                  rows="3"
+                  placeholder="現在の状況や取り組んでいることを記入してください"
+                />
+              </div>
+
+              {/* 課題 */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">課題</label>
+                <textarea
+                  value={topicChallenge}
+                  onChange={(e) => setTopicChallenge(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                  rows="3"
+                  placeholder="解決したい課題や問題点を記入してください"
+                />
+              </div>
             </div>
 
-            <div className="flex gap-4">
+            {/* PDF資料アップロード */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">📎</span>
+                <h3 className="text-xl font-bold text-gray-900">資料PDF（オプション）</h3>
+              </div>
+              <div className="border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:border-blue-500 transition-colors">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setUploadedFile(e.target.files[0])}
+                  className="hidden"
+                  id="pdf-upload"
+                />
+                <label htmlFor="pdf-upload" className="cursor-pointer">
+                  {uploadedFile ? (
+                    <div className="text-green-600">
+                      <div className="text-4xl mb-2">✓</div>
+                      <div className="font-semibold">{uploadedFile.name}</div>
+                      <div className="text-sm text-gray-600 mt-1">クリックで変更</div>
+                    </div>
+                  ) : (
+                    <div className="text-gray-600">
+                      <div className="text-4xl mb-2">☁️</div>
+                      <div className="font-semibold mb-1">PDFファイルをアップロード</div>
+                      <div className="text-sm">Google Driveに保存されます</div>
+                    </div>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            {/* 日程選択 */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">📅</span>
+                <h3 className="text-xl font-bold text-gray-900">開催日時を選択</h3>
+                <span className="text-sm text-gray-600 ml-2">毎週木曜 12:00-13:00</span>
+              </div>
+              <div className="grid md:grid-cols-3 gap-3 max-h-80 overflow-y-auto custom-scrollbar">
+                {thursdaySchedule.map((schedule) => (
+                  <button
+                    key={schedule.iso}
+                    onClick={() => setSelectedDate(schedule.iso)}
+                    className={`p-4 rounded-xl text-left transition-all ${
+                      selectedDate === schedule.iso
+                        ? 'bg-orange-500 text-white shadow-lg scale-105'
+                        : 'bg-white hover:bg-orange-50 border-2 border-gray-200 hover:border-orange-300'
+                    }`}
+                  >
+                    <div className={`text-xs mb-1 ${selectedDate === schedule.iso ? 'text-orange-100' : 'text-gray-500'}`}>
+                      {schedule.date.toLocaleDateString('ja-JP', { year: 'numeric' })}
+                    </div>
+                    <div className="font-bold">{schedule.formatted}</div>
+                    <div className={`text-sm mt-1 ${selectedDate === schedule.iso ? 'text-orange-100' : 'text-gray-600'}`}>
+                      12:00-13:00
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ボタン */}
+            <div className="flex gap-4 pt-4">
               <button
                 onClick={() => {
                   setStage(STAGES.ROLE_SELECT);
@@ -467,16 +619,18 @@ JSONのみを返し、他の説明は不要です。`
               </button>
               <button
                 onClick={() => {
-                  if (topic && currentUser.name && topicDescription) {
+                  if (topic && currentUser.name && topicBackground && topicCurrentSituation && topicChallenge && selectedDate) {
+                    // ここで Google Calendar & Meet URL を生成（将来実装）
+                    alert(`セッションを作成しました！\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}` : ''}`);
                     setStage(STAGES.BRAINSTORM);
                     setIsTimerActive(true);
                     setTimeRemaining(600);
                   }
                 }}
-                disabled={!topic || !currentUser.name || !topicDescription}
+                disabled={!topic || !currentUser.name || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate}
                 className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
-                セッションを開始
+                作成してMeet URLを生成
               </button>
             </div>
           </div>
