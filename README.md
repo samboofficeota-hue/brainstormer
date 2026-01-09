@@ -21,11 +21,14 @@ AIファシリテーターが支援する、大人数向けブレインストー
 
 ## ✨ 特徴
 
-- 🤖 **AI ファシリテーター**: Claude APIが思考を深掘りする質問を自動生成
-- 🗺️ **自動マッピング**: アイデアを自動的にクラスタリングして論点を抽出
+- 🤖 **AI ファシリテーター**: Claude + Gemini APIが思考を深掘りする質問を自動生成
+- 🗺️ **自動マッピング**: Gemini AIがアイデアを自動的にクラスタリングして論点を抽出
 - 🎤 **音声認識**: ディスカッションを自動で文字起こし
+- 👥 **ホスト/ゲスト機能**: セッションを主催したり、参加したりできる
+- 🎥 **Google Meet統合**: オンライン会議URLを統合
+- 🔐 **Google OAuth**: Googleアカウントでログイン可能
+- 💾 **Supabase連携**: リアルタイムデータ同期とセッション管理
 - 🎨 **美しいUI**: モダンで親しみやすいデザイン
-- ⚡ **シンプル**: HTMLファイル1つで動作
 
 ## 🚀 デモ
 
@@ -61,10 +64,15 @@ npm run dev
 
 ### APIキーの取得
 
-**Anthropic API:**
+**Anthropic API (Claude):**
 1. [Anthropic Console](https://console.anthropic.com/) にアクセス
 2. APIキーを作成
 3. `.env` ファイルに `VITE_ANTHROPIC_API_KEY=your-api-key` として設定
+
+**Gemini API:**
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
+2. APIキーを作成
+3. `.env` ファイルに `VITE_GEMINI_API_KEY=your-gemini-api-key` として設定
 
 **Supabase:**
 1. [Supabase](https://supabase.com) でプロジェクトを作成
@@ -77,27 +85,52 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-publishable-key
 ```
 4. SQL Editor で `supabase-schema.sql` を実行してテーブルを作成
+5. Authentication → Providers → Google を有効化し、OAuth認証情報を設定
+
+**Google OAuth + Drive API:**
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成
+2. APIs & Services → Library から以下のAPIを有効化：
+   - Google Drive API
+   - Google Picker API
+3. APIs & Services → OAuth consent screen を設定
+4. Credentials → Create Credentials → OAuth 2.0 Client ID
+5. Authorized redirect URIs に Supabase の Callback URL を追加
+6. Client ID と Client Secret を Supabase の Google Provider 設定に追加
+7. Credentials → Create Credentials → API Key を作成
+8. `.env` ファイルに `VITE_GOOGLE_API_KEY=your-api-key` として設定
 
 ## 主な機能
 
-### 1. セットアップ（準備）
-- 参加者名の登録
-- ブレインストーミングのテーマ設定
+### 1. ホスト/ゲスト選択
+- **ホスト**: セッションを作成し、テーマを設定
+- **ゲスト**: 既存のセッションに参加
+- **Google OAuth**: Googleアカウントでログイン可能
 
-### 2. ブレインストーミング（10分間）
+### 2. ホスト - セッション作成
+- テーマ（タイトル）の設定
+- 補足情報（背景、現状、課題）の入力
+- **PDF資料の選択（Google Drive Picker）** - Googleログイン後、Drive上のPDFを選択可能
+- 開催日時の選択（木曜12:00-13:00、2026年4-6月）
+- **Google Meet URL** の入力
+- パスワード設定（後でホストとして再ログイン可能）
+
+### 3. ブレインストーミング（10分間）
 - 参加者がアイデアを自由に投稿
 - AIが各アイデアに対して質問を投げかけ、思考を深掘り
 - チャット形式でのインタラクティブな対話
+- **Google Meet** ボタンでオンライン会議に参加
+- リアルタイム同期（Supabase）
 
-### 3. AI分析・マッピング
-- 集まったアイデアを自動的にクラスタリング
+### 4. AI分析・マッピング（Gemini）
+- 集まったアイデアを**Gemini AI**が自動的にクラスタリング
 - テーマごとにアイデアを整理
 - 主要な論点を抽出
 
-### 4. リアルディスカッション
+### 5. リアルディスカッション
 - マッピング結果をもとにした対面での議論
 - 音声認識による自動議事録作成
 - ブラウザのWeb Speech APIを使用
+- **Google Meet** で遠隔参加可能
 
 ### 5. 再マッピング
 - ディスカッションの内容を踏まえた再分析

@@ -29,6 +29,7 @@ const STAGES_WITH_PASSWORD = {
 
 // 環境変数からAPIキーを取得
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 function App() {
   const [stage, setStage] = useState(STAGES.ROLE_SELECT);
@@ -42,8 +43,12 @@ function App() {
   const [topicCurrentSituation, setTopicCurrentSituation] = useState('');
   const [topicChallenge, setTopicChallenge] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
+  const [meetUrl, setMeetUrl] = useState('');
+  const [currentSessionMeetUrl, setCurrentSessionMeetUrl] = useState('');
   const [availableTopics, setAvailableTopics] = useState([]);
+  const [isPickerLoaded, setIsPickerLoaded] = useState(false);
   const [isLoadingTopics, setIsLoadingTopics] = useState(true);
   const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [currentUser, setCurrentUser] = useState({ id: '', name: '' });
@@ -177,7 +182,8 @@ function App() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/brainstormer/`
+          redirectTo: `${window.location.origin}/brainstormer/`,
+          scopes: 'openid email profile https://www.googleapis.com/auth/calendar.events'
         }
       });
       if (error) {
@@ -199,6 +205,62 @@ function App() {
     } catch (err) {
       console.error('予期しないエラー:', err);
     }
+  };
+
+  // Google Drive Picker APIを初期化
+  useEffect(() => {
+    const loadPicker = () => {
+      if (window.gapi && window.google) {
+        window.gapi.load('picker', () => {
+          setIsPickerLoaded(true);
+        });
+      }
+    };
+
+    // スクリプトが読み込まれるまで待つ
+    if (window.gapi) {
+      loadPicker();
+    } else {
+      window.addEventListener('load', loadPicker);
+      return () => window.removeEventListener('load', loadPicker);
+    }
+  }, []);
+
+  // Google Drive Pickerを開く
+  const openGoogleDrivePicker = () => {
+    if (!isPickerLoaded || !session) {
+      alert('Google Driveにアクセスするには、まずGoogleアカウントでログインしてください。');
+      return;
+    }
+
+    const accessToken = session.provider_token;
+    if (!accessToken) {
+      alert('Google認証トークンが見つかりません。再度ログインしてください。');
+      return;
+    }
+
+    const picker = new window.google.picker.PickerBuilder()
+      .addView(
+        new window.google.picker.DocsView(window.google.picker.ViewId.DOCS)
+          .setMimeTypes('application/pdf')
+      )
+      .setOAuthToken(accessToken)
+      .setDeveloperKey(import.meta.env.VITE_GOOGLE_API_KEY || '')
+      .setCallback((data) => {
+        if (data.action === window.google.picker.Action.PICKED) {
+          const file = data.docs[0];
+          setUploadedFile({
+            name: file.name,
+            id: file.id,
+            url: file.url
+          });
+          setUploadedFileUrl(file.url);
+          console.log('選択されたファイル:', file);
+        }
+      })
+      .build();
+
+    picker.setVisible(true);
   };
 
   useEffect(() => {
@@ -419,19 +481,16 @@ function App() {
     setIsAnalyzing(true);
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // Gemini APIを使用
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          messages: [{
-            role: 'user',
-            content: `テーマ「${topic}」について、以下のアイデアが出されました：
+          contents: [{
+            parts: [{
+              text: `テーマ「${topic}」について、以下のアイデアが出されました：
 
 ${ideas.map((idea, i) => `${i + 1}. ${idea.content}`).join('\n')}
 
@@ -448,12 +507,17 @@ ${ideas.map((idea, i) => `${i + 1}. ${idea.content}`).join('\n')}
 }
 
 JSONのみを返し、他の説明は不要です。`
-          }]
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4000
+          }
         })
       });
 
       const data = await response.json();
-      const analysisText = data.content[0].text;
+      const analysisText = data.candidates[0].content.parts[0].text;
       const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
@@ -504,19 +568,16 @@ JSONのみを返し、他の説明は不要です。`
     setIsAnalyzing(true);
     
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      // Gemini APIを使用
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          messages: [{
-            role: 'user',
-            content: `元のテーマ「${topic}」に対する初期アイデア：
+          contents: [{
+            parts: [{
+              text: `元のテーマ「${topic}」に対する初期アイデア：
 ${ideas.map((idea, i) => `${i + 1}. ${idea.content}`).join('\n')}
 
 ディスカッションの議事録：
@@ -536,12 +597,17 @@ ${transcript}
 }
 
 JSONのみを返し、他の説明は不要です。`
-          }]
+            }]
+          }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4000
+          }
         })
       });
 
       const data = await response.json();
-      const analysisText = data.content[0].text;
+      const analysisText = data.candidates[0].content.parts[0].text;
       const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
@@ -1020,30 +1086,30 @@ JSONのみを返し、他の説明は不要です。`
                 <span className="text-2xl">📎</span>
                 <h3 className="text-xl font-bold text-gray-900">資料PDF（オプション）</h3>
               </div>
-              <div className="border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:border-blue-500 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setUploadedFile(e.target.files[0])}
-                  className="hidden"
-                  id="pdf-upload"
-                />
-                <label htmlFor="pdf-upload" className="cursor-pointer">
-                  {uploadedFile ? (
-                    <div className="text-green-600">
-                      <div className="text-4xl mb-2">✓</div>
-                      <div className="font-semibold">{uploadedFile.name}</div>
-                      <div className="text-sm text-gray-600 mt-1">クリックで変更</div>
-                    </div>
-                  ) : (
-                    <div className="text-gray-600">
-                      <div className="text-4xl mb-2">☁️</div>
-                      <div className="font-semibold mb-1">PDFファイルをアップロード</div>
-                      <div className="text-sm">Google Driveに保存されます</div>
-                    </div>
-                  )}
-                </label>
-              </div>
+              <button
+                type="button"
+                onClick={openGoogleDrivePicker}
+                className="w-full border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors cursor-pointer"
+              >
+                {uploadedFile ? (
+                  <div className="text-green-600">
+                    <div className="text-4xl mb-2">✓</div>
+                    <div className="font-semibold">{uploadedFile.name}</div>
+                    <div className="text-sm text-gray-600 mt-1">クリックで変更</div>
+                  </div>
+                ) : (
+                  <div className="text-gray-600">
+                    <div className="text-4xl mb-2">☁️</div>
+                    <div className="font-semibold mb-1">Google DriveからPDFを選択</div>
+                    <div className="text-sm">クリックしてファイルを選択</div>
+                  </div>
+                )}
+              </button>
+              {!session && (
+                <p className="text-xs text-orange-600 mt-2 text-center">
+                  💡 Google Driveを使用するには、まず「Office Login」でログインしてください
+                </p>
+              )}
             </div>
 
             {/* 日程選択 */}
@@ -1076,6 +1142,24 @@ JSONのみを返し、他の説明は不要です。`
               </div>
             </div>
 
+            {/* Google Meet URL入力 */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-2xl">🎥</span>
+                <h3 className="text-xl font-bold text-gray-900">Google Meet URL</h3>
+              </div>
+              <input
+                type="url"
+                value={meetUrl}
+                onChange={(e) => setMeetUrl(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all"
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+              />
+              <p className="text-xs text-gray-600 mt-2">
+                💡 Google Calendarで作成したMeet URLを貼り付けてください
+              </p>
+            </div>
+
             {/* ボタン */}
             <div className="flex gap-4 pt-4">
               <button
@@ -1089,7 +1173,7 @@ JSONのみを返し、他の説明は不要です。`
               </button>
               <button
                 onClick={async () => {
-                  if (topic && currentUser.name && hostPassword && topicBackground && topicCurrentSituation && topicChallenge && selectedDate) {
+                  if (topic && currentUser.name && hostPassword && topicBackground && topicCurrentSituation && topicChallenge && selectedDate && meetUrl) {
                     try {
                       // Supabaseにセッションを保存
                       const { data, error } = await supabase
@@ -1104,7 +1188,8 @@ JSONのみを返し、他の説明は不要です。`
                             host_name: currentUser.name,
                             host_password_hash: hostPassword, // 将来はハッシュ化
                             scheduled_date: selectedDate,
-                            pdf_url: uploadedFile ? uploadedFile.name : null,
+                            pdf_url: uploadedFileUrl || null,
+                            meet_url: meetUrl,
                             status: 'upcoming'
                           }
                         ])
@@ -1117,7 +1202,7 @@ JSONのみを返し、他の説明は不要です。`
                         return;
                       }
 
-                      alert(`セッションを作成しました！✨\n\nタイトル: ${topic}\n日時: ${selectedDate}\n${uploadedFile ? `資料: ${uploadedFile.name}\n` : ''}セッションID: ${data.id}`);
+                      alert(`セッションを作成しました！✨\n\nタイトル: ${topic}\n日時: ${selectedDate}\nMeet: ${meetUrl}\n${uploadedFile ? `資料: ${uploadedFile.name}\n` : ''}セッションID: ${data.id}`);
                       
                       // トップページに戻る
                       setStage(STAGES.ROLE_SELECT);
@@ -1129,6 +1214,8 @@ JSONのみを返し、他の説明は不要です。`
                       setHostPassword('');
                       setSelectedDate(null);
                       setUploadedFile(null);
+                      setUploadedFileUrl('');
+                      setMeetUrl('');
                       // お題一覧を再取得
                       fetchSessions();
                     } catch (err) {
@@ -1137,10 +1224,10 @@ JSONのみを返し、他の説明は不要です。`
                     }
                   }
                 }}
-                disabled={!topic || !currentUser.name || !hostPassword || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate}
+                disabled={!topic || !currentUser.name || !hostPassword || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate || !meetUrl}
                 className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
-                作成してMeet URLを生成
+                セッションを作成
               </button>
             </div>
           </div>
@@ -1186,6 +1273,7 @@ JSONのみを返し、他の説明は不要です。`
                     setSelectedTopicId(topicItem.id);
                     setTopic(topicItem.title);
                     setTopicDescription(topicItem.description);
+                    setCurrentSessionMeetUrl(topicItem.meet_url || '');
                   }
                 }}
                 className={`bg-white rounded-2xl shadow-lg p-6 cursor-pointer transition-all duration-300 ${
@@ -1350,10 +1438,25 @@ JSONのみを返し、他の説明は不要です。`
                 </div>
 
                 {/* Google Meetボタン */}
-                <button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2">
-                  <Video size={20} />
-                  <span>Meet参加</span>
-                </button>
+                {currentSessionMeetUrl ? (
+                  <a
+                    href={currentSessionMeetUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-2"
+                  >
+                    <Video size={20} />
+                    <span>Meet参加</span>
+                  </a>
+                ) : (
+                  <button 
+                    disabled
+                    className="bg-gray-400 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 opacity-50 cursor-not-allowed"
+                  >
+                    <Video size={20} />
+                    <span>Meet未設定</span>
+                  </button>
+                )}
               </div>
 
               {/* 右側: タイマー */}
@@ -1510,13 +1613,31 @@ JSONのみを返し、他の説明は不要です。`
                 リアルディスカッション
               </h2>
               {/* Google Meetボタン（大きめ） */}
-              <button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-3">
-                <Video size={32} />
-                <div className="text-left">
-                  <div>Google Meet</div>
-                  <div className="text-xs opacity-90">オンライン会議中</div>
-                </div>
-              </button>
+              {currentSessionMeetUrl ? (
+                <a
+                  href={currentSessionMeetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 flex items-center gap-3"
+                >
+                  <Video size={32} />
+                  <div className="text-left">
+                    <div>Google Meet</div>
+                    <div className="text-xs opacity-90">オンライン会議中</div>
+                  </div>
+                </a>
+              ) : (
+                <button 
+                  disabled
+                  className="bg-gray-400 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg flex items-center gap-3 opacity-50 cursor-not-allowed"
+                >
+                  <Video size={32} />
+                  <div className="text-left">
+                    <div>Google Meet</div>
+                    <div className="text-xs opacity-90">未設定</div>
+                  </div>
+                </button>
+              )}
             </div>
 
             <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-8 mb-8">
