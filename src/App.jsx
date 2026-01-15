@@ -644,8 +644,7 @@ JSONのみを返し、他の説明は不要です。`
           {/* 説明セクション */}
           <div className="bg-white rounded-3xl shadow-xl p-10 mb-12">
             <div className="max-w-5xl mx-auto">
-              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-4 text-center">デザイン思考のダブルダイヤモンド</h2>
+              <div className="mb-6">
                 <p className="text-lg text-gray-700 leading-relaxed text-center mb-8">
                   課題解決のアイディアを生み出す上で最も重要なのは、<span className="font-bold text-orange-600">「何を課題として設定するか」</span>です。<br />
                   このシステムは、デザイン思考のダブルダイヤモンドの<span className="font-bold text-pink-600">左側（問題発見）</span>に焦点を当て、<br />
@@ -655,97 +654,19 @@ JSONのみを返し、他の説明は不要です。`
 
               {/* ダブルダイヤモンド図 */}
               <div className="relative mb-8">
-                <svg viewBox="0 0 1300 500" className="w-full h-auto">
-                  {/* 横軸 */}
-                  <line x1="100" y1="250" x2="1200" y2="250" stroke="#9ca3af" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                {/* タイトルを画像上部に配置 */}
+                <div className="text-center mb-3">
+                  <h3 className="text-sm font-semibold text-gray-500">&lt;デザイン思考のダブルダイヤモンド&gt;</h3>
+                </div>
 
-                  {/* 縦軸 */}
-                  <line x1="100" y1="400" x2="100" y2="100" stroke="#9ca3af" strokeWidth="2" markerEnd="url(#arrowhead)" />
-
-                  {/* 矢印の定義 */}
-                  <defs>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-                      <polygon points="0 0, 10 3, 0 6" fill="#9ca3af" />
-                    </marker>
-                  </defs>
-
-                  {/* 軸ラベル */}
-                  <text x="1220" y="255" className="fill-gray-600 font-semibold" fontSize="16">時間</text>
-                  <text x="70" y="90" className="fill-gray-600 font-semibold" fontSize="16" transform="rotate(-90 70 90)">選択肢</text>
-
-                  {/* 左側のダイヤモンド（ピンク）- 繋がった状態 */}
-                  <polygon
-                    points="100,250 300,100 500,250 300,400"
-                    fill="#fecdd3"
-                    stroke="#fb7185"
-                    strokeWidth="3"
+                {/* 画像を表示 */}
+                <div className="flex justify-center">
+                  <img
+                    src="/double-diamond.png"
+                    alt="デザイン思考のダブルダイヤモンド"
+                    className="w-full max-w-4xl h-auto"
                   />
-
-                  {/* 右側のダイヤモンド（ブルー）- 左と繋がった状態 */}
-                  <polygon
-                    points="500,250 700,100 900,250 700,400"
-                    fill="#bfdbfe"
-                    stroke="#60a5fa"
-                    strokeWidth="3"
-                    opacity="0.4"
-                  />
-
-                  {/* 上部タイトル */}
-                  <text x="300" y="70" textAnchor="middle" className="fill-rose-700 font-bold" fontSize="24">
-                    正しい問題を見つける
-                  </text>
-                  <text x="700" y="70" textAnchor="middle" className="fill-blue-600 font-bold" fontSize="24" opacity="0.4">
-                    正しい解決を見つける
-                  </text>
-
-                  {/* フェーズラベル */}
-                  {/* 探索 */}
-                  <text x="200" y="235" textAnchor="middle" className="fill-gray-800 font-bold" fontSize="18">
-                    探索
-                  </text>
-                  <text x="200" y="255" textAnchor="middle" className="fill-gray-600" fontSize="13">
-                    問題の洗出し
-                  </text>
-
-                  {/* 定義 */}
-                  <text x="400" y="235" textAnchor="middle" className="fill-gray-800 font-bold" fontSize="18">
-                    定義
-                  </text>
-                  <text x="400" y="255" textAnchor="middle" className="fill-gray-600" fontSize="13">
-                    問題の絞込み
-                  </text>
-
-                  {/* 展開 */}
-                  <text x="600" y="235" textAnchor="middle" className="fill-gray-500 font-bold" fontSize="18" opacity="0.4">
-                    展開
-                  </text>
-                  <text x="600" y="255" textAnchor="middle" className="fill-gray-500" fontSize="13" opacity="0.4">
-                    解決策の洗出し
-                  </text>
-
-                  {/* 提供 */}
-                  <text x="800" y="235" textAnchor="middle" className="fill-gray-500 font-bold" fontSize="18" opacity="0.4">
-                    提供
-                  </text>
-                  <text x="800" y="255" textAnchor="middle" className="fill-gray-500" fontSize="13" opacity="0.4">
-                    解決策の絞込み
-                  </text>
-
-                  {/* 下部ラベル */}
-                  <text x="100" y="440" textAnchor="start" className="fill-gray-700 font-semibold" fontSize="15">
-                    対象領域の特定
-                  </text>
-                  <text x="300" y="440" textAnchor="middle" className="fill-rose-600 font-bold" fontSize="16">
-                    課題の特定
-                  </text>
-                  <text x="700" y="440" textAnchor="middle" className="fill-blue-500 font-bold" fontSize="16" opacity="0.4">
-                    解決策の特定
-                  </text>
-
-                  {/* 強調の丸（システムが支援する範囲） */}
-                  <circle cx="100" cy="250" r="20" fill="#fbbf24" opacity="0.9" />
-                  <circle cx="500" cy="250" r="20" fill="#fbbf24" opacity="0.9" />
-                </svg>
+                </div>
 
                 <div className="text-center mt-6 text-sm text-gray-600">
                   <p className="inline-flex items-center gap-2">
