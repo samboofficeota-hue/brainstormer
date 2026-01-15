@@ -182,7 +182,7 @@ function App() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/brainstormer/`,
+          redirectTo: window.location.origin,
           scopes: 'openid email profile https://www.googleapis.com/auth/calendar.events'
         }
       });
@@ -724,10 +724,19 @@ JSONのみを返し、他の説明は不要です。`
                 </div>
               ) : (
                 availableTopics.map((topicItem) => {
-                  const displayDate = topicItem.scheduled_date 
-                    ? new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP')
-                    : new Date(topicItem.created_at).toLocaleDateString('ja-JP');
-                  
+                  // 日付の安全な処理
+                  let displayDate = '日時未設定';
+                  try {
+                    if (topicItem.scheduled_date) {
+                      displayDate = new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP');
+                    } else if (topicItem.created_at) {
+                      displayDate = new Date(topicItem.created_at).toLocaleDateString('ja-JP');
+                    }
+                  } catch (error) {
+                    console.error('日付のパースエラー:', error);
+                    displayDate = '日時未設定';
+                  }
+
                   return (
                     <div
                       key={topicItem.id}
@@ -1294,11 +1303,27 @@ JSONのみを返し、他の説明は不要です。`
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <div className="flex items-center gap-2">
                     <span>🎯</span>
-                    <span>ホスト: {topicItem.host}</span>
+                    <span>ホスト: {topicItem.host_name || topicItem.host || '不明'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span>📅</span>
-                    <span>{topicItem.createdAt.toLocaleDateString('ja-JP')}</span>
+                    <span>
+                      {(() => {
+                        try {
+                          if (topicItem.scheduled_date) {
+                            return new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP');
+                          } else if (topicItem.created_at) {
+                            return new Date(topicItem.created_at).toLocaleDateString('ja-JP');
+                          } else if (topicItem.createdAt) {
+                            return new Date(topicItem.createdAt).toLocaleDateString('ja-JP');
+                          }
+                          return '日時未設定';
+                        } catch (error) {
+                          console.error('日付のパースエラー:', error);
+                          return '日時未設定';
+                        }
+                      })()}
+                    </span>
                   </div>
                 </div>
               </div>
