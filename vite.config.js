@@ -6,5 +6,9 @@ export default defineConfig({
   base: '/',
   define: {
     'process.env': {}
+  },
+  server: {
+    port: 3000,
+    strictPort: false, // ポートが使用中の場合は次の利用可能なポートを使用
   }
 })

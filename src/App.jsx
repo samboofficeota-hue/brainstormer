@@ -31,17 +31,24 @@ const STAGES_WITH_PASSWORD = {
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
+// 開発環境判定
+const isDevelopment = import.meta.env.DEV;
+
 function App() {
   const [stage, setStage] = useState(STAGES.ROLE_SELECT);
   const [hostPassword, setHostPassword] = useState('');
   const [passwordAttempt, setPasswordAttempt] = useState('');
   const [selectedTopicForHostLogin, setSelectedTopicForHostLogin] = useState(null);
   const [role, setRole] = useState(null);
+  const [showOnlyMyTopics, setShowOnlyMyTopics] = useState(false);
   const [topic, setTopic] = useState('');
   const [topicDescription, setTopicDescription] = useState('');
-  const [topicBackground, setTopicBackground] = useState('');
-  const [topicCurrentSituation, setTopicCurrentSituation] = useState('');
-  const [topicChallenge, setTopicChallenge] = useState('');
+  const [topicGoal, setTopicGoal] = useState('');
+  const [topicQuestion1, setTopicQuestion1] = useState('');
+  const [topicQuestion2, setTopicQuestion2] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState('');
   const [selectedDate, setSelectedDate] = useState(null);
@@ -156,15 +163,49 @@ function App() {
         .from('sessions')
         .select('*')
         .eq('status', 'upcoming')
-        .order('scheduled_date', { ascending: true });
+        .order('start_date', { ascending: true });
 
       if (error) {
         console.error('Supabaseからのデータ取得エラー:', error);
         // エラー時はダミーデータを表示
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const nextMonth = new Date(today);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        const lastMonth = new Date(today);
+        lastMonth.setMonth(lastMonth.getMonth() - 1);
+
         setAvailableTopics([
-          { id: '1', title: '地域コミュニティの活性化', description: '地域住民が交流できる新しい仕組みを考えます', host_name: '山田太郎', created_at: new Date().toISOString() },
-          { id: '2', title: '教育現場でのAI活用', description: '学校や教育機関でAIを効果的に使う方法', host_name: '佐藤花子', created_at: new Date().toISOString() },
-          { id: '3', title: '環境に優しい生活習慣', description: 'サステナブルな暮らし方のアイデア', host_name: '鈴木一郎', created_at: new Date().toISOString() }
+          {
+            id: '1',
+            title: '地域コミュニティの活性化',
+            description: '地域住民が交流できる新しい仕組みを考えます',
+            host_name: '山田太郎',
+            start_date: tomorrow.toISOString().split('T')[0],
+            end_date: nextMonth.toISOString().split('T')[0],
+            created_at: new Date().toISOString()
+          },
+          {
+            id: '2',
+            title: '教育現場でのAI活用',
+            description: '学校や教育機関でAIを効果的に使う方法',
+            host_name: '佐藤花子',
+            start_date: lastMonth.toISOString().split('T')[0],
+            end_date: nextMonth.toISOString().split('T')[0],
+            created_at: new Date().toISOString()
+          },
+          {
+            id: '3',
+            title: '環境に優しい生活習慣',
+            description: 'サステナブルな暮らし方のアイデア',
+            host_name: '鈴木一郎',
+            start_date: lastMonth.toISOString().split('T')[0],
+            end_date: yesterday.toISOString().split('T')[0],
+            created_at: new Date().toISOString()
+          }
         ]);
       } else {
         setAvailableTopics(data || []);
@@ -178,6 +219,30 @@ function App() {
 
   // Googleでログイン
   const signInWithGoogle = async () => {
+    // 開発環境では簡易ログイン
+    if (isDevelopment) {
+      const devUserName = prompt('開発モード：ユーザー名を入力してください', 'Yoshi Ota');
+      if (devUserName) {
+        setCurrentUser({
+          id: 'dev-user-' + Date.now(),
+          name: devUserName
+        });
+        // 擬似的なセッションを作成
+        setSession({
+          user: {
+            id: 'dev-user-' + Date.now(),
+            email: 'dev@example.com',
+            user_metadata: {
+              full_name: devUserName,
+              avatar_url: null
+            }
+          }
+        });
+      }
+      return;
+    }
+
+    // 本番環境はGoogle OAuth
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -197,6 +262,14 @@ function App() {
 
   // ログアウト
   const signOut = async () => {
+    // 開発環境では簡易ログアウト
+    if (isDevelopment) {
+      setSession(null);
+      setCurrentUser({ id: '', name: '' });
+      return;
+    }
+
+    // 本番環境はSupabase認証
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
@@ -713,10 +786,27 @@ JSONのみを返し、他の説明は不要です。`
           {/* お題一覧セクション */}
           <div className="mb-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-gray-900">📋 開催予定のお題</h2>
-              <span className="text-sm text-gray-500">{availableTopics.length}件のお題</span>
+              <h2 className="text-3xl font-bold text-gray-900">
+                📋 {showOnlyMyTopics ? '作成したお題' : '開催予定のお題'}
+              </h2>
+              <div className="flex items-center gap-3">
+                {showOnlyMyTopics && (
+                  <button
+                    onClick={() => setShowOnlyMyTopics(false)}
+                    className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all"
+                  >
+                    すべて表示
+                  </button>
+                )}
+                <span className="text-sm text-gray-500">
+                  {showOnlyMyTopics
+                    ? `${availableTopics.filter(t => t.host_name === currentUser.name).length}件のお題`
+                    : `${availableTopics.length}件のお題`
+                  }
+                </span>
+              </div>
             </div>
-            
+
             <div className="grid md:grid-cols-3 gap-6 mb-8">
               {isLoadingTopics ? (
                 // ローディング表示
@@ -724,26 +814,57 @@ JSONのみを返し、他の説明は不要です。`
                   <div className="inline-block w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
                   <p className="text-gray-600">お題を読み込み中...</p>
                 </div>
-              ) : availableTopics.length === 0 ? (
+              ) : availableTopics.filter(t => !showOnlyMyTopics || t.host_name === currentUser.name).length === 0 ? (
                 // データがない場合
                 <div className="col-span-3 text-center py-12 bg-white rounded-2xl">
                   <div className="text-6xl mb-4">📋</div>
-                  <p className="text-xl text-gray-700 mb-2">まだお題がありません</p>
-                  <p className="text-sm text-gray-500">ホストとして最初のお題を作成しましょう！</p>
+                  <p className="text-xl text-gray-700 mb-2">
+                    {showOnlyMyTopics ? 'まだお題を作成していません' : 'まだお題がありません'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {showOnlyMyTopics ? '「お題を新規作成」ボタンから作成しましょう' : 'ホストとして最初のお題を作成しましょう！'}
+                  </p>
                 </div>
               ) : (
-                availableTopics.map((topicItem) => {
+                availableTopics
+                  .filter(t => !showOnlyMyTopics || t.host_name === currentUser.name)
+                  .map((topicItem) => {
                   // 日付の安全な処理
                   let displayDate = '日時未設定';
                   try {
-                    if (topicItem.scheduled_date) {
-                      displayDate = new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP');
+                    if (topicItem.start_date && topicItem.end_date) {
+                      const start = new Date(topicItem.start_date);
+                      const end = new Date(topicItem.end_date);
+                      const startStr = `${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
+                      const endStr = `${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+                      displayDate = `${startStr}〜${endStr}`;
+                    } else if (topicItem.start_date) {
+                      const start = new Date(topicItem.start_date);
+                      displayDate = `${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
                     } else if (topicItem.created_at) {
-                      displayDate = new Date(topicItem.created_at).toLocaleDateString('ja-JP');
+                      const created = new Date(topicItem.created_at);
+                      displayDate = `${String(created.getMonth() + 1).padStart(2, '0')}/${String(created.getDate()).padStart(2, '0')}`;
                     }
                   } catch (error) {
                     console.error('日付のパースエラー:', error);
                     displayDate = '日時未設定';
+                  }
+
+                  // 開催期間のチェック
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  let isActive = false;
+
+                  try {
+                    if (topicItem.start_date && topicItem.end_date) {
+                      const start = new Date(topicItem.start_date);
+                      const end = new Date(topicItem.end_date);
+                      start.setHours(0, 0, 0, 0);
+                      end.setHours(23, 59, 59, 999);
+                      isActive = today >= start && today <= end;
+                    }
+                  } catch (error) {
+                    console.error('日付比較エラー:', error);
                   }
 
                   return (
@@ -752,49 +873,82 @@ JSONのみを返し、他の説明は不要です。`
                       className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300"
                     >
                       <div className="mb-4">
-                        <div className="text-xs text-orange-600 font-semibold mb-2">📅 {displayDate}</div>
+                        <div className="text-xs text-orange-600 font-semibold mb-2">📅 開催期間: {displayDate}</div>
                         <h3 className="text-xl font-bold text-gray-900 mb-2">{topicItem.title}</h3>
                         <p className="text-sm text-gray-600 line-clamp-2">{topicItem.description}</p>
                       </div>
-                      
+
                       <div className="pt-4 border-t border-gray-100 space-y-3">
-                        {/* ホスト名（クリック可能） - より目立つデザイン */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!session) {
-                              signInWithGoogle();
-                            } else {
-                              setSelectedTopicForHostLogin(topicItem);
-                              setStage('host_password');
-                            }
-                          }}
-                          className="w-full flex items-center justify-between px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 group border border-orange-200"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>🎯</span>
-                            <span className="text-sm font-semibold text-gray-800">ホスト: {topicItem.host_name}</span>
+                        {/* ホスト名（キャプション） */}
+                        {showOnlyMyTopics ? (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              // 自分のお題の場合、直接編集画面へ
+                              setRole(ROLES.HOST);
+                              setSelectedTopicId(topicItem.id);
+                              setTopic(topicItem.title);
+                              setTopicDescription(topicItem.description);
+
+                              // データベースから詳細情報を取得
+                              const { data, error } = await supabase
+                                .from('sessions')
+                                .select('*')
+                                .eq('id', topicItem.id)
+                                .single();
+
+                              if (!error && data) {
+                                setTopicGoal(data.goal || '');
+                                setTopicQuestion1(data.question1 || '');
+                                setTopicQuestion2(data.question2 || '');
+                                setStartDate(data.start_date || '');
+                                setEndDate(data.end_date || '');
+                                setUploadedFileUrl(data.pdf_url || '');
+                                if (data.pdf_url) {
+                                  setUploadedFile({ name: 'uploaded.pdf', url: data.pdf_url });
+                                }
+                              }
+
+                              setStage(STAGES.HOST_SETUP);
+                            }}
+                            className="w-full text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 border border-orange-200"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">🎯 ホスト: {topicItem.host_name}</span>
+                              </div>
+                              <div className="text-xs text-orange-600 font-semibold">
+                                ✏️ 修正
+                              </div>
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="text-xs text-gray-500 px-2">
+                            🎯 ホスト: {topicItem.host_name}
                           </div>
-                          <div className="flex items-center gap-1 text-xs text-orange-600 group-hover:text-orange-700">
-                            <span>✏️</span>
-                            <span className="font-semibold">修正</span>
-                          </div>
-                        </button>
+                        )}
 
                         {/* ゲスト参加ボタン */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setRole(ROLES.GUEST);
-                            setSelectedTopicId(topicItem.id);
-                            setTopic(topicItem.title);
-                            setTopicDescription(topicItem.description);
-                            setStage(STAGES.GUEST_SELECT);
+                            if (!showOnlyMyTopics && isActive) {
+                              setRole(ROLES.GUEST);
+                              setSelectedTopicId(topicItem.id);
+                              setTopic(topicItem.title);
+                              setTopicDescription(topicItem.description);
+                              setStage(STAGES.GUEST_SELECT);
+                            }
                           }}
-                          className="w-full py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] transition-all duration-300 flex items-center justify-center gap-2"
+                          disabled={showOnlyMyTopics || !isActive}
+                          className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all duration-300 ${
+                            showOnlyMyTopics || !isActive
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:shadow-lg hover:scale-[1.02]'
+                          }`}
                         >
                           <span>👥</span>
-                          <span>参加する</span>
+                          <span>{isActive ? '参加する' : '期間外'}</span>
                         </button>
                       </div>
                     </div>
@@ -838,8 +992,10 @@ JSONのみを返し、他の説明は不要です。`
                   // 未ログインの場合、Google認証を実行
                   await signInWithGoogle();
                 } else {
-                  // ログイン済みの場合、お題選択画面へ（ホストパスワード入力用）
-                  alert('お題一覧のホスト名をクリックして、修正したいお題を選択してください');
+                  // ログイン済みの場合、自分のお題のみを表示
+                  setShowOnlyMyTopics(true);
+                  // 上にスクロール
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
               }}
               className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-2 border-orange-200"
@@ -1003,6 +1159,317 @@ JSONのみを返し、他の説明は不要です。`
 
   // ホスト用セットアップ画面
   if (stage === STAGES.HOST_SETUP) {
+    // 修正モードの場合
+    if (selectedTopicId) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-8 animate-fadeIn">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-block px-4 py-2 bg-orange-100 text-orange-800 rounded-full text-sm font-semibold mb-4">
+                🎯 ホストモード - 修正
+              </div>
+              <h1 className="text-5xl font-bold mb-4 gradient-text">
+                お題を修正
+              </h1>
+              <p className="text-lg text-gray-700">
+                各項目をクリックして内容を修正できます
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {/* タイトルカード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">タイトル</div>
+                    <input
+                      type="text"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="w-full text-xl font-bold text-gray-900 border-2 border-gray-200 rounded-lg px-4 py-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 概要カード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">概要</div>
+                    <textarea
+                      value={topicDescription}
+                      onChange={(e) => setTopicDescription(e.target.value)}
+                      className="w-full text-gray-700 border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all resize-none"
+                      rows="4"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 目指したいことカード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">目指したいこと</div>
+                    <textarea
+                      value={topicGoal}
+                      onChange={(e) => setTopicGoal(e.target.value)}
+                      className="w-full text-gray-700 border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all resize-none"
+                      rows="3"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 問い①カード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">問い①</div>
+                    <textarea
+                      value={topicQuestion1}
+                      onChange={(e) => setTopicQuestion1(e.target.value)}
+                      className="w-full text-gray-700 border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all resize-none"
+                      rows="4"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 問い②カード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-500 mb-2">問い②</div>
+                    <textarea
+                      value={topicQuestion2}
+                      onChange={(e) => setTopicQuestion2(e.target.value)}
+                      className="w-full text-gray-700 border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all resize-none"
+                      rows="4"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 開催期間カード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="text-sm font-semibold text-gray-500 mb-4">開催期間</div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-2">開始日</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-2">終了日</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full border-2 border-gray-200 rounded-lg px-4 py-3 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 資料PDFカード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all">
+                <div className="text-sm font-semibold text-gray-500 mb-4">資料PDF（オプション）</div>
+                {uploadedFile ? (
+                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border-2 border-green-200">
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">📄</div>
+                      <div>
+                        <div className="font-semibold text-gray-900">{uploadedFile.name}</div>
+                        <div className="text-xs text-gray-600">アップロード済み</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={openGoogleDrivePicker}
+                      className="px-4 py-2 text-sm bg-white border-2 border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition-all"
+                    >
+                      変更
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={openGoogleDrivePicker}
+                    className="w-full border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 hover:bg-orange-50 transition-all"
+                  >
+                    <div className="text-gray-600">
+                      <div className="text-3xl mb-2">☁️</div>
+                      <div className="font-semibold">Google DriveからPDFを選択</div>
+                    </div>
+                  </button>
+                )}
+              </div>
+
+              {/* ミーティングURLカード */}
+              <div className="bg-white rounded-2xl shadow-lg p-6">
+                <div className="text-sm font-semibold text-gray-500 mb-4">ミーティングURL（自動生成）</div>
+                <div className="bg-gray-50 rounded-lg px-4 py-3 border-2 border-gray-200 text-gray-600 font-mono text-sm">
+                  {`https://meet.google.com/brainstorm-${selectedTopicId.slice(0, 8)}`}
+                </div>
+              </div>
+
+              {/* 保存ボタン */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={() => {
+                    setStage(STAGES.ROLE_SELECT);
+                    setRole(null);
+                    setSelectedTopicId(null);
+                    setShowOnlyMyTopics(false);
+                    setTopic('');
+                    setTopicDescription('');
+                    setTopicGoal('');
+                    setTopicQuestion1('');
+                    setTopicQuestion2('');
+                    setStartDate('');
+                    setEndDate('');
+                    setUploadedFile(null);
+                    setUploadedFileUrl('');
+                  }}
+                  className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-300 transition-all"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={() => {
+                    if (topic && topicDescription && topicGoal && topicQuestion1 && topicQuestion2 && startDate && endDate) {
+                      setShowConfirmModal(true);
+                    }
+                  }}
+                  disabled={!topic || !topicDescription || !topicGoal || !topicQuestion1 || !topicQuestion2 || !startDate || !endDate}
+                  className="flex-1 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  変更を保存
+                </button>
+              </div>
+            </div>
+
+            {/* 確認モーダル（修正モード用） */}
+            {showConfirmModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-8">
+                    <div className="text-center mb-6">
+                      <div className="text-5xl mb-4">✏️</div>
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                        お題の更新内容を確認
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        以下の内容で更新します
+                      </p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-6 mb-6 space-y-4 text-left">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">タイトル</div>
+                        <div className="text-lg font-bold text-gray-900">{topic}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">概要</div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicDescription}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">目指したいこと</div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicGoal}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">問い①</div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicQuestion1}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">問い②</div>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicQuestion2}</div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 mb-1">開催期間</div>
+                        <div className="text-sm text-gray-700">{startDate} 〜 {endDate}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const generatedMeetUrl = `https://meet.google.com/brainstorm-${selectedTopicId.slice(0, 8)}`;
+
+                            const { error } = await supabase
+                              .from('sessions')
+                              .update({
+                                title: topic,
+                                description: topicDescription,
+                                goal: topicGoal,
+                                question1: topicQuestion1,
+                                question2: topicQuestion2,
+                                start_date: startDate,
+                                end_date: endDate,
+                                pdf_url: uploadedFileUrl || null,
+                                meet_url: generatedMeetUrl
+                              })
+                              .eq('id', selectedTopicId);
+
+                            if (error) {
+                              console.error('セッション更新エラー:', error);
+                              alert('セッションの更新に失敗しました。もう一度お試しください。');
+                              return;
+                            }
+
+                            alert(`セッションを更新しました！✨`);
+
+                            setShowConfirmModal(false);
+                            setStage(STAGES.ROLE_SELECT);
+                            setShowOnlyMyTopics(false);
+                            setSelectedTopicId(null);
+                            setTopic('');
+                            setTopicDescription('');
+                            setTopicGoal('');
+                            setTopicQuestion1('');
+                            setTopicQuestion2('');
+                            setStartDate('');
+                            setEndDate('');
+                            setUploadedFile(null);
+                            setUploadedFileUrl('');
+                            fetchSessions();
+                          } catch (err) {
+                            console.error('予期しないエラー:', err);
+                            alert('予期しないエラーが発生しました。');
+                          }
+                        }}
+                        className="flex-1 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all"
+                      >
+                        この内容で更新する
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => setShowConfirmModal(false)}
+                      className="w-full mt-3 py-3 text-gray-600 hover:text-gray-900 font-semibold transition-all"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 新規作成モード
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-8 animate-fadeIn">
         <div className="max-w-4xl mx-auto">
@@ -1013,97 +1480,34 @@ JSONのみを返し、他の説明は不要です。`
             <h1 className="text-5xl font-bold mb-4 gradient-text">
               お題を作成
             </h1>
-            <p className="text-lg text-gray-700">お題を設定してセッションを開始しましょう</p>
+            <p className="text-lg text-gray-700">
+              お題を設定してセッションを開始しましょう
+            </p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-2xl p-10 space-y-8">
-            {/* ホスト名 */}
+            {/* タイトル */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">あなたの名前（ホスト名）</label>
-              <input
-                type="text"
-                value={currentUser.name}
-                onChange={(e) => setCurrentUser({ ...currentUser, name: e.target.value, id: Date.now().toString() })}
-                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
-                placeholder="山田太郎"
-              />
-            </div>
-
-            {/* ホストパスワード設定 */}
-            <div className="bg-orange-50 rounded-2xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">🔒</span>
-                <h3 className="text-lg font-bold text-gray-900">ホストパスワード設定</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">パスワード</label>
-                <input
-                  type="password"
-                  value={hostPassword}
-                  onChange={(e) => setHostPassword(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all"
-                  placeholder="後でホストとしてログインするためのパスワード"
-                />
-                <p className="text-xs text-gray-600 mt-2">
-                  💡 このパスワードで後からセッションに戻れます
-                </p>
-              </div>
-            </div>
-
-            {/* テーマ */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">テーマ（タイトル）</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">タイトル</label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
-                placeholder="例：地域コミュニティを活性化する新しい施策"
+                placeholder="例：地域の公共交通を持続可能にするには"
               />
             </div>
 
-            {/* 補足情報（テンプレート） */}
-            <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 space-y-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">📝</span>
-                <h3 className="text-xl font-bold text-gray-900">補足情報（テンプレート）</h3>
-              </div>
-              
-              {/* 背景 */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">背景</label>
-                <textarea
-                  value={topicBackground}
-                  onChange={(e) => setTopicBackground(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
-                  rows="3"
-                  placeholder="このテーマが生まれた背景や経緯を記入してください"
-                />
-              </div>
-
-              {/* 現状 */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">現状</label>
-                <textarea
-                  value={topicCurrentSituation}
-                  onChange={(e) => setTopicCurrentSituation(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
-                  rows="3"
-                  placeholder="現在の状況や取り組んでいることを記入してください"
-                />
-              </div>
-
-              {/* 課題 */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">課題</label>
-                <textarea
-                  value={topicChallenge}
-                  onChange={(e) => setTopicChallenge(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
-                  rows="3"
-                  placeholder="解決したい課題や問題点を記入してください"
-                />
-              </div>
+            {/* 概要 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">概要</label>
+              <textarea
+                value={topicDescription}
+                onChange={(e) => setTopicDescription(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                rows="4"
+                placeholder="例：人口減少により公共交通の利用者が減少し、財政負担が増大しています。住民の移動手段をどう確保するか、その合意をどう形成していくかが課題です。"
+              />
             </div>
 
             {/* PDF資料アップロード */}
@@ -1131,58 +1535,94 @@ JSONのみを返し、他の説明は不要です。`
                   </div>
                 )}
               </button>
-              {!session && (
+              {!session && isDevelopment && (
                 <p className="text-xs text-orange-600 mt-2 text-center">
-                  💡 Google Driveを使用するには、まず「Office Login」でログインしてください
+                  💡 開発モードでは資料アップロードは省略可能です
                 </p>
               )}
             </div>
 
-            {/* 日程選択 */}
+            {/* 目指したいこと */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">目指したいこと</label>
+              <textarea
+                value={topicGoal}
+                onChange={(e) => setTopicGoal(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                rows="3"
+                placeholder="例：10年後も20年後も、住民みんなが安心して移動できる地域であり続ける"
+              />
+            </div>
+
+            {/* 問い① */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">問い①</label>
+              <textarea
+                value={topicQuestion1}
+                onChange={(e) => setTopicQuestion1(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                rows="4"
+                placeholder="例：現在の公共交通の何が問題？&#10;路線や本数を減らすべきか、それとも別の解決策があるのか、みんなの意見を教えて！"
+              />
+            </div>
+
+            {/* 問い② */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-3">問い②</label>
+              <textarea
+                value={topicQuestion2}
+                onChange={(e) => setTopicQuestion2(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all resize-none"
+                rows="4"
+                placeholder="例：地域の未来のために何に投資する？&#10;予算が全て現状維持に使われるのでは、未来がない。では何に投資していくべきか。みんなの意見を教えて！"
+              />
+            </div>
+
+            {/* 開催期間 */}
             <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-2xl">📅</span>
-                <h3 className="text-xl font-bold text-gray-900">開催日時を選択</h3>
-                <span className="text-sm text-gray-600 ml-2">毎週木曜 12:00-13:00</span>
+                <h3 className="text-xl font-bold text-gray-900">開催期間を設定</h3>
               </div>
-              <div className="grid md:grid-cols-3 gap-3 max-h-80 overflow-y-auto custom-scrollbar">
-                {thursdaySchedule.map((schedule) => (
-                  <button
-                    key={schedule.iso}
-                    onClick={() => setSelectedDate(schedule.iso)}
-                    className={`p-4 rounded-xl text-left transition-all ${
-                      selectedDate === schedule.iso
-                        ? 'bg-orange-500 text-white shadow-lg scale-105'
-                        : 'bg-white hover:bg-orange-50 border-2 border-gray-200 hover:border-orange-300'
-                    }`}
-                  >
-                    <div className={`text-xs mb-1 ${selectedDate === schedule.iso ? 'text-orange-100' : 'text-gray-500'}`}>
-                      {schedule.date.toLocaleDateString('ja-JP', { year: 'numeric' })}
-                    </div>
-                    <div className="font-bold">{schedule.formatted}</div>
-                    <div className={`text-sm mt-1 ${selectedDate === schedule.iso ? 'text-orange-100' : 'text-gray-600'}`}>
-                      12:00-13:00
-                    </div>
-                  </button>
-                ))}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">開始日</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-2">終了日</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all"
+                  />
+                </div>
               </div>
+              <p className="text-xs text-gray-600 mt-3">
+                💡 この期間内に参加者がアイデアを投稿できます
+              </p>
             </div>
 
-            {/* Google Meet URL入力 */}
+            {/* ミーティングURL（自動生成） */}
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-2xl">🎥</span>
-                <h3 className="text-xl font-bold text-gray-900">Google Meet URL</h3>
+                <h3 className="text-xl font-bold text-gray-900">ミーティングURL</h3>
               </div>
-              <input
-                type="url"
-                value={meetUrl}
-                onChange={(e) => setMeetUrl(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-green-500 focus:ring-4 focus:ring-green-100 transition-all"
-                placeholder="https://meet.google.com/xxx-xxxx-xxx"
-              />
-              <p className="text-xs text-gray-600 mt-2">
-                💡 Google Calendarで作成したMeet URLを貼り付けてください
+              <div className="bg-white rounded-xl px-4 py-3 border-2 border-gray-200 text-gray-600 font-mono text-sm">
+                {selectedTopicId
+                  ? `https://meet.google.com/brainstorm-${selectedTopicId.slice(0, 8)}`
+                  : '保存後に自動生成されます'
+                }
+              </div>
+              <p className="text-xs text-gray-600 mt-3">
+                💡 お題ごとに固定のGoogle Meet URLが自動生成されます
               </p>
             </div>
 
@@ -1192,71 +1632,235 @@ JSONのみを返し、他の説明は不要です。`
                 onClick={() => {
                   setStage(STAGES.ROLE_SELECT);
                   setRole(null);
+                  setSelectedTopicId(null);
+                  setShowOnlyMyTopics(false);
+                  // フォームをリセット
+                  setTopic('');
+                  setTopicDescription('');
+                  setTopicGoal('');
+                  setTopicQuestion1('');
+                  setTopicQuestion2('');
+                  setStartDate('');
+                  setEndDate('');
+                  setUploadedFile(null);
+                  setUploadedFileUrl('');
                 }}
                 className="flex-1 py-4 bg-gray-200 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-300 transition-all duration-300"
               >
                 戻る
               </button>
               <button
-                onClick={async () => {
-                  if (topic && currentUser.name && hostPassword && topicBackground && topicCurrentSituation && topicChallenge && selectedDate && meetUrl) {
-                    try {
-                      // Supabaseにセッションを保存
-                      const { data, error } = await supabase
-                        .from('sessions')
-                        .insert([
-                          {
-                            title: topic,
-                            description: `背景: ${topicBackground}\n現状: ${topicCurrentSituation}\n課題: ${topicChallenge}`,
-                            background: topicBackground,
-                            current_situation: topicCurrentSituation,
-                            challenge: topicChallenge,
-                            host_name: currentUser.name,
-                            host_password_hash: hostPassword, // 将来はハッシュ化
-                            scheduled_date: selectedDate,
-                            pdf_url: uploadedFileUrl || null,
-                            meet_url: meetUrl,
-                            status: 'upcoming'
-                          }
-                        ])
-                        .select()
-                        .single();
-
-                      if (error) {
-                        console.error('セッション作成エラー:', error);
-                        alert('セッションの作成に失敗しました。もう一度お試しください。');
-                        return;
-                      }
-
-                      alert(`セッションを作成しました！✨\n\nタイトル: ${topic}\n日時: ${selectedDate}\nMeet: ${meetUrl}\n${uploadedFile ? `資料: ${uploadedFile.name}\n` : ''}セッションID: ${data.id}`);
-                      
-                      // トップページに戻る
-                      setStage(STAGES.ROLE_SELECT);
-                      // フォームをリセット
-                      setTopic('');
-                      setTopicBackground('');
-                      setTopicCurrentSituation('');
-                      setTopicChallenge('');
-                      setHostPassword('');
-                      setSelectedDate(null);
-                      setUploadedFile(null);
-                      setUploadedFileUrl('');
-                      setMeetUrl('');
-                      // お題一覧を再取得
-                      fetchSessions();
-                    } catch (err) {
-                      console.error('予期しないエラー:', err);
-                      alert('予期しないエラーが発生しました。');
-                    }
+                onClick={() => {
+                  if (topic && topicDescription && topicGoal && topicQuestion1 && topicQuestion2 && startDate && endDate) {
+                    setShowConfirmModal(true);
                   }
                 }}
-                disabled={!topic || !currentUser.name || !hostPassword || !topicBackground || !topicCurrentSituation || !topicChallenge || !selectedDate || !meetUrl}
+                disabled={!topic || !topicDescription || !topicGoal || !topicQuestion1 || !topicQuestion2 || !startDate || !endDate}
                 className="flex-1 py-5 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
               >
-                セッションを作成
+                {selectedTopicId ? '更新する' : 'セッションを作成'}
               </button>
             </div>
           </div>
+
+          {/* 確認モーダル */}
+          {showConfirmModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-8">
+                  <div className="text-center mb-6">
+                    <div className="text-5xl mb-4">📋</div>
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                      {selectedTopicId ? 'お題の更新内容を確認' : 'お題の登録内容を確認'}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      以下の内容で{selectedTopicId ? '更新' : '登録'}します
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-2xl p-6 mb-6 space-y-4 text-left">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">タイトル</div>
+                      <div className="text-lg font-bold text-gray-900">{topic}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">概要</div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicDescription}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">目指したいこと</div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicGoal}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">問い①</div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicQuestion1}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">問い②</div>
+                      <div className="text-sm text-gray-700 whitespace-pre-wrap">{topicQuestion2}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">開催期間</div>
+                      <div className="text-sm text-gray-700">{startDate} 〜 {endDate}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 mb-1">参加URL</div>
+                      <div className="text-sm text-blue-600 font-mono break-all">
+                        {window.location.origin}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        const shareText = `【お題への参加のご案内】
+
+タイトル：${topic}
+
+概要：
+${topicDescription}
+
+目指したいこと：
+${topicGoal}
+
+問い①：
+${topicQuestion1}
+
+問い②：
+${topicQuestion2}
+
+開催期間：${startDate} 〜 ${endDate}
+
+参加URL：${window.location.origin}
+
+ぜひご参加ください！`;
+
+                        navigator.clipboard.writeText(shareText).then(() => {
+                          alert('📋 内容をクリップボードにコピーしました！');
+                        }).catch(() => {
+                          alert('コピーに失敗しました。もう一度お試しください。');
+                        });
+                      }}
+                      className="flex-1 py-4 bg-blue-500 text-white rounded-xl font-bold text-lg hover:bg-blue-600 transition-all duration-300 flex items-center justify-center gap-2"
+                    >
+                      <Copy size={20} />
+                      この内容をコピーする
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (selectedTopicId) {
+                            // 更新モード
+                            const generatedMeetUrl = `https://meet.google.com/brainstorm-${selectedTopicId.slice(0, 8)}`;
+
+                            const { error } = await supabase
+                              .from('sessions')
+                              .update({
+                                title: topic,
+                                description: topicDescription,
+                                goal: topicGoal,
+                                question1: topicQuestion1,
+                                question2: topicQuestion2,
+                                start_date: startDate,
+                                end_date: endDate,
+                                pdf_url: uploadedFileUrl || null,
+                                meet_url: generatedMeetUrl
+                              })
+                              .eq('id', selectedTopicId);
+
+                            if (error) {
+                              console.error('セッション更新エラー:', error);
+                              alert('セッションの更新に失敗しました。もう一度お試しください。');
+                              return;
+                            }
+
+                            alert(`セッションを更新しました！✨`);
+                          } else {
+                            // 新規作成モード
+                            const { data, error } = await supabase
+                              .from('sessions')
+                              .insert([
+                                {
+                                  title: topic,
+                                  description: topicDescription,
+                                  goal: topicGoal,
+                                  question1: topicQuestion1,
+                                  question2: topicQuestion2,
+                                  host_name: currentUser.name,
+                                  start_date: startDate,
+                                  end_date: endDate,
+                                  pdf_url: uploadedFileUrl || null,
+                                  meet_url: '', // 後で更新
+                                  status: 'upcoming'
+                                }
+                              ])
+                              .select()
+                              .single();
+
+                            if (error) {
+                              console.error('セッション作成エラー:', error);
+                              alert('セッションの作成に失敗しました。もう一度お試しください。');
+                              return;
+                            }
+
+                            // IDを使ってMeet URLを生成し、更新
+                            const generatedMeetUrl = `https://meet.google.com/brainstorm-${data.id.slice(0, 8)}`;
+                            await supabase
+                              .from('sessions')
+                              .update({ meet_url: generatedMeetUrl })
+                              .eq('id', data.id);
+
+                            alert(`セッションを作成しました！✨`);
+                          }
+
+                          // モーダルを閉じる
+                          setShowConfirmModal(false);
+
+                          // トップページに戻る
+                          setStage(STAGES.ROLE_SELECT);
+                          setShowOnlyMyTopics(false);
+                          // フォームをリセット
+                          setSelectedTopicId(null);
+                          setTopic('');
+                          setTopicDescription('');
+                          setTopicGoal('');
+                          setTopicQuestion1('');
+                          setTopicQuestion2('');
+                          setStartDate('');
+                          setEndDate('');
+                          setUploadedFile(null);
+                          setUploadedFileUrl('');
+                          // お題一覧を再取得
+                          fetchSessions();
+                        } catch (err) {
+                          console.error('予期しないエラー:', err);
+                          alert('予期しないエラーが発生しました。');
+                        }
+                      }}
+                      className="flex-1 py-4 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all duration-300"
+                    >
+                      この内容で登録する
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="w-full mt-3 py-3 text-gray-600 hover:text-gray-900 font-semibold transition-all"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1327,12 +1931,18 @@ JSONのみを返し、他の説明は不要です。`
                     <span>
                       {(() => {
                         try {
-                          if (topicItem.scheduled_date) {
-                            return new Date(topicItem.scheduled_date).toLocaleDateString('ja-JP');
+                          if (topicItem.start_date && topicItem.end_date) {
+                            const start = new Date(topicItem.start_date);
+                            const end = new Date(topicItem.end_date);
+                            const startStr = `${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
+                            const endStr = `${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+                            return `${startStr}〜${endStr}`;
+                          } else if (topicItem.start_date) {
+                            const start = new Date(topicItem.start_date);
+                            return `${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
                           } else if (topicItem.created_at) {
-                            return new Date(topicItem.created_at).toLocaleDateString('ja-JP');
-                          } else if (topicItem.createdAt) {
-                            return new Date(topicItem.createdAt).toLocaleDateString('ja-JP');
+                            const created = new Date(topicItem.created_at);
+                            return `${String(created.getMonth() + 1).padStart(2, '0')}/${String(created.getDate()).padStart(2, '0')}`;
                           }
                           return '日時未設定';
                         } catch (error) {
