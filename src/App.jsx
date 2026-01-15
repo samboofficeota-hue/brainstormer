@@ -636,70 +636,134 @@ JSONのみを返し、他の説明は不要です。`
           {/* ヘッダー */}
           <div className="text-center mb-8">
             <h1 className="text-6xl font-bold mb-4 gradient-text">
-              集団ブレインストーミング
+              AI-Powered Discussion System
             </h1>
-            <p className="text-xl text-gray-700">AIと共に創造的な議論を</p>
+            <p className="text-2xl text-gray-800 font-semibold mb-6">みんなで熟議して課題を特定しよう</p>
           </div>
 
-          {/* Google認証エリア */}
-          <div className="max-w-md mx-auto mb-12">
-            {isAuthLoading ? (
-              <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
-                <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            ) : session ? (
-              // ログイン済み
-              <div className="bg-white rounded-2xl shadow-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {session.user.user_metadata.avatar_url && (
-                      <img 
-                        src={session.user.user_metadata.avatar_url} 
-                        alt={currentUser.name}
-                        className="w-12 h-12 rounded-full"
-                      />
-                    )}
-                    <div>
-                      <div className="font-bold text-gray-900">{currentUser.name}</div>
-                      <div className="text-sm text-gray-500">{session.user.email}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={signOut}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
-                  >
-                    ログアウト
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // 未ログイン
-              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                <div className="mb-4">
-                  <div className="text-4xl mb-2">🔐</div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Googleでログイン</h3>
-                  <p className="text-sm text-gray-600">
-                    より便利にご利用いただけます
-                  </p>
-                </div>
-                <button
-                  onClick={signInWithGoogle}
-                  className="w-full py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-3"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  <span>Googleでログイン</span>
-                </button>
-                <p className="text-xs text-gray-500 mt-4">
-                  ログインすると名前が自動で設定されます
+          {/* 説明セクション */}
+          <div className="bg-white rounded-3xl shadow-xl p-10 mb-12">
+            <div className="max-w-5xl mx-auto">
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4 text-center">デザイン思考のダブルダイヤモンド</h2>
+                <p className="text-lg text-gray-700 leading-relaxed text-center mb-8">
+                  課題解決のアイディアを生み出す上で最も重要なのは、<span className="font-bold text-orange-600">「何を課題として設定するか」</span>です。<br />
+                  このシステムは、デザイン思考のダブルダイヤモンドの<span className="font-bold text-pink-600">左側（問題発見）</span>に焦点を当て、<br />
+                  参加者全員で熟議を重ねながら、真に解決すべき課題を特定していきます。
                 </p>
               </div>
-            )}
+
+              {/* ダブルダイヤモンド図 */}
+              <div className="relative mb-8">
+                <svg viewBox="0 0 1200 400" className="w-full h-auto">
+                  {/* 左側のダイヤモンド（ピンク） */}
+                  <polygon
+                    points="50,200 300,50 550,200 300,350"
+                    fill="#fecdd3"
+                    stroke="#fb7185"
+                    strokeWidth="3"
+                  />
+
+                  {/* 右側のダイヤモンド（ブルー） */}
+                  <polygon
+                    points="650,200 900,50 1150,200 900,350"
+                    fill="#bfdbfe"
+                    stroke="#60a5fa"
+                    strokeWidth="3"
+                    opacity="0.4"
+                  />
+
+                  {/* テキストラベル */}
+                  <text x="300" y="30" textAnchor="middle" className="fill-rose-700 font-bold" fontSize="24">
+                    正しい問題を見つける
+                  </text>
+                  <text x="900" y="30" textAnchor="middle" className="fill-blue-600 font-bold" fontSize="24" opacity="0.4">
+                    正しい解決を見つける
+                  </text>
+
+                  {/* フェーズラベル */}
+                  <text x="175" y="190" textAnchor="middle" className="fill-gray-800 font-bold" fontSize="20">
+                    探索
+                  </text>
+                  <text x="175" y="215" textAnchor="middle" className="fill-gray-600" fontSize="14">
+                    問題の洗出し
+                  </text>
+
+                  <text x="425" y="190" textAnchor="middle" className="fill-gray-800 font-bold" fontSize="20">
+                    定義
+                  </text>
+                  <text x="425" y="215" textAnchor="middle" className="fill-gray-600" fontSize="14">
+                    問題の絞込み
+                  </text>
+
+                  <text x="775" y="190" textAnchor="middle" className="fill-gray-500 font-bold" fontSize="20" opacity="0.4">
+                    展開
+                  </text>
+                  <text x="775" y="215" textAnchor="middle" className="fill-gray-500" fontSize="14" opacity="0.4">
+                    解決策の洗出し
+                  </text>
+
+                  <text x="1025" y="190" textAnchor="middle" className="fill-gray-500 font-bold" fontSize="20" opacity="0.4">
+                    提供
+                  </text>
+                  <text x="1025" y="215" textAnchor="middle" className="fill-gray-500" fontSize="14" opacity="0.4">
+                    解決策の絞込み
+                  </text>
+
+                  {/* 軸ラベル */}
+                  <text x="300" y="380" textAnchor="middle" className="fill-rose-600 font-bold" fontSize="18">
+                    課題の特定
+                  </text>
+                  <text x="900" y="380" textAnchor="middle" className="fill-blue-500 font-bold" fontSize="18" opacity="0.4">
+                    解決策の特定
+                  </text>
+
+                  {/* 強調の丸 */}
+                  <circle cx="50" cy="200" r="20" fill="#fbbf24" opacity="0.9" />
+                  <circle cx="550" cy="200" r="20" fill="#fbbf24" opacity="0.9" />
+                </svg>
+
+                <div className="text-center mt-6 text-sm text-gray-600">
+                  <p className="inline-flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-yellow-400"></span>
+                    <span className="font-semibold">このシステムが支援する範囲</span>
+                    ：対象領域の特定 → 課題の特定
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-2xl p-6 text-center">
+                <p className="text-gray-800 font-semibold text-lg">
+                  🤖 AIファシリテーターがディスカッションをサポートし、<br />
+                  参加者の多様な視点を統合して、本質的な課題を浮き彫りにします
+                </p>
+              </div>
+            </div>
           </div>
+
+          {/* ユーザー情報（ログイン状態を右上に小さく表示） */}
+          {session && (
+            <div className="fixed top-4 right-4 z-50">
+              <div className="bg-white rounded-xl shadow-lg p-3 flex items-center gap-3">
+                {session.user.user_metadata.avatar_url && (
+                  <img
+                    src={session.user.user_metadata.avatar_url}
+                    alt={currentUser.name}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <div className="text-sm">
+                  <div className="font-semibold text-gray-900">{currentUser.name}</div>
+                </div>
+                <button
+                  onClick={signOut}
+                  className="px-3 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-all"
+                >
+                  ログアウト
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* お題一覧セクション */}
           <div className="mb-12">
@@ -787,54 +851,54 @@ JSONのみを返し、他の説明は不要です。`
           </div>
 
           {/* アクションボタンセクション */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* ゲスト参加ボタン */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* ホスト新規作成ボタン */}
             <button
-              onClick={() => {
-                setRole(ROLES.GUEST);
-                setStage(STAGES.GUEST_SELECT);
+              onClick={async () => {
+                if (!session) {
+                  // 未ログインの場合、Google認証を実行
+                  await signInWithGoogle();
+                } else {
+                  // ログイン済みの場合、ホストセットアップ画面へ
+                  setRole(ROLES.HOST);
+                  setStage(STAGES.HOST_SETUP);
+                }
               }}
               className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
             >
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
-                  👥
-                </div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">ゲストで参加</h3>
-                <p className="text-sm text-gray-600">お題を選んで参加</p>
-              </div>
-            </button>
-
-            {/* ホスト作成ボタン */}
-            <button
-              onClick={() => {
-                setRole(ROLES.HOST);
-                setStage(STAGES.HOST_SETUP);
-              }}
-              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
-            >
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
+                <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-4xl group-hover:scale-110 transition-transform">
                   🎯
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">ホストでお題作成</h3>
-                <p className="text-sm text-gray-600">新しいセッションを作成</p>
+                <h3 className="text-2xl font-bold mb-2 text-gray-900">ホストで新規作成</h3>
+                <p className="text-sm text-gray-600">
+                  {session ? '新しいセッションを作成' : 'Googleでログインして作成'}
+                </p>
               </div>
             </button>
 
-            {/* 事務局ログインボタン */}
+            {/* ホストでログインボタン */}
             <button
-              onClick={() => {
-                alert('事務局ログイン機能は今後実装予定です');
+              onClick={async () => {
+                if (!session) {
+                  // 未ログインの場合、Google認証を実行
+                  await signInWithGoogle();
+                } else {
+                  // ログイン済みの場合、お題選択画面へ（ホストパスワード入力用）
+                  // 既存のお題一覧から選択させる
+                  alert('お題一覧から、ホストとしてログインしたいお題を選択してください');
+                }
               }}
-              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-2 border-gray-200"
+              className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-2 border-orange-200"
             >
               <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-gray-400 to-gray-600 rounded-full flex items-center justify-center text-white text-3xl group-hover:scale-110 transition-transform">
-                  🔐
+                <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl group-hover:scale-110 transition-transform">
+                  🔑
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">事務局ログイン</h3>
-                <p className="text-sm text-gray-600">管理者専用</p>
+                <h3 className="text-2xl font-bold mb-2 text-gray-900">ホストでログイン</h3>
+                <p className="text-sm text-gray-600">
+                  {session ? '既存のセッションに戻る' : 'Googleでログインして管理'}
+                </p>
               </div>
             </button>
           </div>
