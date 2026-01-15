@@ -758,18 +758,27 @@ JSONのみを返し、他の説明は不要です。`
                       </div>
                       
                       <div className="pt-4 border-t border-gray-100 space-y-3">
-                        {/* ホスト名（クリック可能） */}
+                        {/* ホスト名（クリック可能） - より目立つデザイン */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedTopicForHostLogin(topicItem);
-                            setStage('host_password');
+                            if (!session) {
+                              signInWithGoogle();
+                            } else {
+                              setSelectedTopicForHostLogin(topicItem);
+                              setStage('host_password');
+                            }
                           }}
-                          className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 transition-colors group"
+                          className="w-full flex items-center justify-between px-4 py-3 bg-orange-50 hover:bg-orange-100 rounded-xl transition-all duration-300 group border border-orange-200"
                         >
-                          <span>🎯</span>
-                          <span className="group-hover:underline">{topicItem.host_name}</span>
-                          <span className="text-xs text-gray-400 group-hover:text-orange-400">（ホストでログイン）</span>
+                          <div className="flex items-center gap-2">
+                            <span>🎯</span>
+                            <span className="text-sm font-semibold text-gray-800">ホスト: {topicItem.host_name}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-orange-600 group-hover:text-orange-700">
+                            <span>✏️</span>
+                            <span className="font-semibold">修正</span>
+                          </div>
                         </button>
 
                         {/* ゲスト参加ボタン */}
@@ -797,7 +806,7 @@ JSONのみを返し、他の説明は不要です。`
 
           {/* アクションボタンセクション */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* ホスト新規作成ボタン */}
+            {/* お題を新規作成ボタン */}
             <button
               onClick={async () => {
                 if (!session) {
@@ -813,16 +822,16 @@ JSONのみを返し、他の説明は不要です。`
             >
               <div className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white text-4xl group-hover:scale-110 transition-transform">
-                  🎯
+                  ➕
                 </div>
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">ホストで新規作成</h3>
+                <h3 className="text-2xl font-bold mb-2 text-gray-900">お題を新規作成</h3>
                 <p className="text-sm text-gray-600">
-                  {session ? '新しいセッションを作成' : 'Googleでログインして作成'}
+                  {session ? 'ホストとして新しいお題を作成' : 'Googleでログインして作成'}
                 </p>
               </div>
             </button>
 
-            {/* ホストでログインボタン */}
+            {/* 作成したお題を修正ボタン */}
             <button
               onClick={async () => {
                 if (!session) {
@@ -830,19 +839,18 @@ JSONのみを返し、他の説明は不要です。`
                   await signInWithGoogle();
                 } else {
                   // ログイン済みの場合、お題選択画面へ（ホストパスワード入力用）
-                  // 既存のお題一覧から選択させる
-                  alert('お題一覧から、ホストとしてログインしたいお題を選択してください');
+                  alert('お題一覧のホスト名をクリックして、修正したいお題を選択してください');
                 }
               }}
               className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group border-2 border-orange-200"
             >
               <div className="text-center">
                 <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center text-white text-4xl group-hover:scale-110 transition-transform">
-                  🔑
+                  ✏️
                 </div>
-                <h3 className="text-2xl font-bold mb-2 text-gray-900">ホストでログイン</h3>
+                <h3 className="text-2xl font-bold mb-2 text-gray-900">作成したお題を修正</h3>
                 <p className="text-sm text-gray-600">
-                  {session ? '既存のセッションに戻る' : 'Googleでログインして管理'}
+                  {session ? 'ホストとして既存のお題を編集' : 'Googleでログインして管理'}
                 </p>
               </div>
             </button>
