@@ -636,9 +636,9 @@ JSONのみを返し、他の説明は不要です。`
           {/* ヘッダー */}
           <div className="text-center mb-8">
             <h1 className="text-6xl font-bold mb-4 gradient-text">
-              AI-Powered Discussion System
+              みんなで熟議して課題を特定しよう
             </h1>
-            <p className="text-2xl text-gray-800 font-semibold mb-6">みんなで熟議して課題を特定しよう</p>
+            <p className="text-xl text-gray-600 font-medium mb-6">AI-Powered Discussion System</p>
           </div>
 
           {/* 説明セクション */}
