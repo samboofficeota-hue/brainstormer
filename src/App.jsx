@@ -311,7 +311,11 @@ function App() {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          scopes: 'openid email profile https://www.googleapis.com/auth/calendar.events'
+          scopes: 'openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
       if (error) {
