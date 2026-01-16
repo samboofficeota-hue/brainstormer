@@ -71,7 +71,15 @@ function App() {
   const [mappedIdeas, setMappedIdeas] = useState(null);
   const [currentInput, setCurrentInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+
+  // ゲスト画面の状態管理
+  const [currentQuestionSection, setCurrentQuestionSection] = useState('question1'); // 'question1', 'question2', 'solution'
+  const [messagesQ1, setMessagesQ1] = useState([]);
+  const [messagesQ2, setMessagesQ2] = useState([]);
+  const [selectedSolution, setSelectedSolution] = useState('');
+  const [solutionReason, setSolutionReason] = useState('');
+  const [showAllOpinions, setShowAllOpinions] = useState(false);
+
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
 
@@ -477,9 +485,13 @@ function App() {
       type: 'user'
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setIdeas((prev) => [...prev, { userId: currentUser.id, content: currentInput }]);
-    
+    // 現在の問いセクションに応じてメッセージを追加
+    const currentMessages = currentQuestionSection === 'question1' ? messagesQ1 : messagesQ2;
+    const setCurrentMessages = currentQuestionSection === 'question1' ? setMessagesQ1 : setMessagesQ2;
+
+    setCurrentMessages((prev) => [...prev, userMessage]);
+    setIdeas((prev) => [...prev, { userId: currentUser.id, content: currentInput, questionSection: currentQuestionSection }]);
+
     const ideaContent = currentInput;
     setCurrentInput('');
 
@@ -492,7 +504,8 @@ function App() {
             {
               session_id: selectedTopicId,
               participant_id: currentParticipantId,
-              content: ideaContent
+              content: ideaContent,
+              question_section: currentQuestionSection
             }
           ]);
       } catch (error) {
@@ -501,27 +514,38 @@ function App() {
     }
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      console.log('AI APIリクエスト開始:', { topic, ideaContent, currentQuestionSection });
+
+      // 現在のお題情報を取得
+      const currentTopic = availableTopics.find(t => t.id === selectedTopicId);
+
+      const response = await fetch('http://localhost:3001/api/ai/question', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: `テーマ「${topic}」に対して、参加者が以下のアイデアを出しました：
-「${currentInput}」
-
-このアイデアの背景にある考えや、さらに広がる可能性について、1つ質問してください。質問は簡潔に、1〜2文で。`
-          }]
+          topic: topic,
+          idea: ideaContent,
+          goal: currentTopic?.goal || '',
+          question1: currentTopic?.question1 || '',
+          question2: currentTopic?.question2 || '',
+          currentQuestion: currentQuestionSection === 'question1' ? currentTopic?.question1 : currentTopic?.question2,
+          previousMessages: currentMessages
         })
       });
 
+      console.log('Proxy APIレスポンスステータス:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Proxy APIエラーレスポンス:', errorData);
+        throw new Error(`Proxy Error: ${response.status} - ${JSON.stringify(errorData)}`);
+      }
+
       const data = await response.json();
+      console.log('AI APIレスポンスデータ:', data);
+
       const aiQuestion = data.content[0].text;
 
       const aiMessage = {
@@ -533,18 +557,20 @@ function App() {
         type: 'ai'
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      setCurrentMessages((prev) => [...prev, aiMessage]);
+      console.log('AIメッセージ追加成功:', aiQuestion);
     } catch (error) {
       console.error('AI質問生成エラー:', error);
+      console.error('エラー詳細:', error.message);
       const errorMessage = {
         id: Date.now() + 1,
         userId: 'ai',
         userName: 'AIファシリテーター',
-        content: 'それは興味深いアイデアですね。もう少し詳しく教えていただけますか？',
+        content: `エラーが発生しました（${error.message}）。それは興味深いアイデアですね。もう少し詳しく教えていただけますか？`,
         timestamp: new Date(),
         type: 'ai'
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setCurrentMessages((prev) => [...prev, errorMessage]);
     }
   };
 
@@ -930,14 +956,40 @@ JSONのみを返し、他の説明は不要です。`
 
                         {/* ゲスト参加ボタン */}
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (!showOnlyMyTopics && isActive) {
+                              // ログインしていない場合はプロンプトで名前を入力
+                              if (!session && isDevelopment) {
+                                const guestName = prompt('開発モード：ゲスト名を入力してください', 'ゲスト');
+                                if (guestName) {
+                                  setCurrentUser({
+                                    id: 'guest-' + Date.now(),
+                                    name: guestName
+                                  });
+                                }
+                              }
+
                               setRole(ROLES.GUEST);
                               setSelectedTopicId(topicItem.id);
                               setTopic(topicItem.title);
                               setTopicDescription(topicItem.description);
-                              setStage(STAGES.GUEST_SELECT);
+
+                              // データベースから詳細情報を取得
+                              const { data, error } = await supabase
+                                .from('sessions')
+                                .select('*')
+                                .eq('id', topicItem.id)
+                                .single();
+
+                              if (!error && data) {
+                                setCurrentSessionMeetUrl(data.meet_url || '');
+                              }
+
+                              // GUEST_SELECT画面をスキップして直接ブレインストーミング画面へ
+                              setStage(STAGES.BRAINSTORM);
+                              setIsTimerActive(true);
+                              setTimeRemaining(600);
                             }
                           }}
                           disabled={showOnlyMyTopics || !isActive}
@@ -2038,58 +2090,41 @@ ${topicQuestion2}
 
   // ブレインストーミング画面
   if (stage === STAGES.BRAINSTORM) {
+    // お題情報を取得
+    const currentTopic = availableTopics.find(t => t.id === selectedTopicId);
+    const currentMessages = currentQuestionSection === 'question1' ? messagesQ1 : messagesQ2;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-6">
         <div className="max-w-6xl mx-auto">
-          {/* セッション情報バー */}
+          {/* ヘッダー */}
           <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              {/* 左側: お題と役割 */}
-              <div className="flex-1 min-w-[300px]">
-                <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-3xl font-bold text-gray-900">{topic}</h2>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                    role === ROLES.HOST 
-                      ? 'bg-orange-100 text-orange-800' 
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {role === ROLES.HOST ? '🎯 ホスト' : '👥 ゲスト'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">{topic}</h2>
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <div className="flex items-center gap-1">
                     <Users size={16} />
                     <span>{currentUser.name}</span>
                   </div>
-                  {topicDescription && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">|</span>
-                      <span className="truncate max-w-xs">{topicDescription}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* 中央: 参加者とGoogle Meet */}
-              <div className="flex items-center gap-4">
-                {/* 参加者リスト（将来のリアルタイム同期用） */}
-                <div className="bg-gray-50 rounded-xl px-4 py-3">
-                  <div className="text-xs text-gray-500 mb-1">参加者</div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex -space-x-2">
-                      <div className="w-8 h-8 rounded-full bg-orange-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold">
-                        {currentUser.name.charAt(0)}
-                      </div>
-                      {/* 他の参加者のアバター（将来実装） */}
-                      <div className="w-8 h-8 rounded-full bg-blue-400 border-2 border-white flex items-center justify-center text-white text-xs font-bold opacity-50">
-                        +
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">1人</span>
+                  <span className="text-gray-400">|</span>
+                  <div className="flex items-center gap-1">
+                    <span>📅</span>
+                    <span>
+                      {currentTopic && currentTopic.start_date && currentTopic.end_date ? (
+                        (() => {
+                          const start = new Date(currentTopic.start_date);
+                          const end = new Date(currentTopic.end_date);
+                          return `${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}〜${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+                        })()
+                      ) : '期間未設定'}
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                {/* Google Meetボタン */}
+              {/* Google Meetボタン */}
+              <div className="ml-4">
                 {currentSessionMeetUrl ? (
                   <a
                     href={currentSessionMeetUrl}
@@ -2101,7 +2136,7 @@ ${topicQuestion2}
                     <span>Meet参加</span>
                   </a>
                 ) : (
-                  <button 
+                  <button
                     disabled
                     className="bg-gray-400 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg flex items-center gap-2 opacity-50 cursor-not-allowed"
                   >
@@ -2110,80 +2145,242 @@ ${topicQuestion2}
                   </button>
                 )}
               </div>
-
-              {/* 右側: タイマー */}
-              <div className="text-center bg-gradient-to-br from-orange-50 to-rose-50 rounded-xl px-6 py-3">
-                <div className="text-4xl font-bold text-orange-600">{formatTime(timeRemaining)}</div>
-                <div className="text-xs text-gray-600 mt-1">残り時間</div>
-              </div>
             </div>
+          </div>
 
-            {/* セッション共有バー（ホストのみ表示） */}
-            {role === ROLES.HOST && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 bg-gray-50 rounded-lg px-4 py-2 font-mono text-sm text-gray-600">
-                    セッションID: SESSION-{Date.now().toString().slice(-6)}
-                  </div>
-                  <button className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg font-semibold text-sm hover:bg-orange-200 transition-all flex items-center gap-2">
-                    <Copy size={16} />
-                    招待リンクをコピー
-                  </button>
-                </div>
+          {/* お題（意図、資料） */}
+          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">お題</h3>
+            <p className="text-gray-700 mb-4">{topicDescription}</p>
+            {currentTopic && currentTopic.goal && (
+              <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4">
+                <div className="text-sm font-semibold text-gray-600 mb-2">🎯 目指したいこと</div>
+                <div className="text-gray-800">{currentTopic.goal}</div>
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6" style={{ height: 'calc(100vh - 400px)' }}>
-            <div className="h-full overflow-y-auto space-y-4 pr-4 custom-scrollbar">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.type === 'ai' ? 'justify-start' : 'justify-end'} animate-fadeIn`}
+          {/* 問い①セクション */}
+          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">問い①</h3>
+              <button
+                onClick={() => setCurrentQuestionSection('question1')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  currentQuestionSection === 'question1'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                }`}
+              >
+                {currentQuestionSection === 'question1' ? '回答中' : '切り替え'}
+              </button>
+            </div>
+
+            {currentTopic && currentTopic.question1 && (
+              <div className="bg-blue-50 rounded-xl p-4 mb-4">
+                <p className="text-gray-800">{currentTopic.question1}</p>
+              </div>
+            )}
+
+            {currentQuestionSection === 'question1' && (
+              <>
+                {/* AIチャット */}
+                <div className="mb-4">
+                  <div className="h-64 overflow-y-auto space-y-3 mb-4 pr-2 custom-scrollbar">
+                    {messagesQ1.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.type === 'ai' ? 'justify-start' : 'justify-end'} animate-fadeIn`}
+                      >
+                        <div className={`max-w-[70%] rounded-2xl p-3 ${
+                          msg.type === 'ai'
+                            ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-gray-900'
+                            : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
+                        }`}>
+                          <div className="font-semibold text-xs mb-1">{msg.userName}</div>
+                          <div className="text-sm">{msg.content}</div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={currentInput}
+                      onChange={(e) => setCurrentInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                      className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all"
+                      placeholder="考えを入力..."
+                    />
+                    <button
+                      onClick={sendMessage}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all"
+                    >
+                      <Send size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* みんなの意見をみる */}
+                <button
+                  onClick={() => setShowAllOpinions(!showAllOpinions)}
+                  className="w-full py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.01] transition-all"
                 >
-                  <div className={`max-w-[70%] rounded-2xl p-4 ${
-                    msg.type === 'ai'
-                      ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-gray-900'
-                      : 'bg-gradient-to-r from-orange-500 to-rose-500 text-white'
-                  }`}>
-                    <div className="font-semibold text-sm mb-1">{msg.userName}</div>
-                    <div className="text-base">{msg.content}</div>
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+                  {showAllOpinions ? '意見を閉じる' : 'みんなの意見をみる'}
+                </button>
 
-          <div className="bg-white rounded-3xl shadow-lg p-6">
-            <div className="flex gap-4 mb-4">
-              <input
-                type="text"
-                value={currentInput}
-                onChange={(e) => setCurrentInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                className="flex-1 px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all text-lg"
-                placeholder="アイデアを入力..."
-              />
-              <button
-                onClick={sendMessage}
-                className="px-8 py-4 bg-gradient-to-r from-orange-500 to-rose-500 text-white rounded-xl font-bold hover:shadow-xl hover:scale-105 transition-all duration-300"
-              >
-                <Send size={24} />
-              </button>
-            </div>
-            {ideas.length > 0 && (
-              <button
-                onClick={() => {
-                  setIsTimerActive(false);
-                  handleStageComplete();
-                }}
-                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl font-semibold text-base shadow-md hover:shadow-lg hover:scale-[1.01] transition-all duration-300"
-              >
-                アイデアが揃ったので分析を開始する（{ideas.length}個のアイデア）
-              </button>
+                {showAllOpinions && (
+                  <div className="mt-4 bg-gray-50 rounded-xl p-4 max-h-64 overflow-y-auto">
+                    {ideas.filter(idea => idea.questionSection === 'question1').map((idea, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-3 mb-2">
+                        <div className="text-xs text-gray-500 mb-1">参加者の意見</div>
+                        <div className="text-sm text-gray-800">{idea.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* 問い②セクション */}
+          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">問い②</h3>
+              <button
+                onClick={() => setCurrentQuestionSection('question2')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                  currentQuestionSection === 'question2'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                }`}
+              >
+                {currentQuestionSection === 'question2' ? '回答中' : '切り替え'}
+              </button>
+            </div>
+
+            {currentTopic && currentTopic.question2 && (
+              <div className="bg-orange-50 rounded-xl p-4 mb-4">
+                <p className="text-gray-800">{currentTopic.question2}</p>
+              </div>
+            )}
+
+            {currentQuestionSection === 'question2' && (
+              <>
+                {/* AIチャット */}
+                <div className="mb-4">
+                  <div className="h-64 overflow-y-auto space-y-3 mb-4 pr-2 custom-scrollbar">
+                    {messagesQ2.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.type === 'ai' ? 'justify-start' : 'justify-end'} animate-fadeIn`}
+                      >
+                        <div className={`max-w-[70%] rounded-2xl p-3 ${
+                          msg.type === 'ai'
+                            ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-gray-900'
+                            : 'bg-gradient-to-r from-orange-500 to-rose-500 text-white'
+                        }`}>
+                          <div className="font-semibold text-xs mb-1">{msg.userName}</div>
+                          <div className="text-sm">{msg.content}</div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={currentInput}
+                      onChange={(e) => setCurrentInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                      className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all"
+                      placeholder="考えを入力..."
+                    />
+                    <button
+                      onClick={sendMessage}
+                      className="px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-500 text-white rounded-xl font-bold hover:shadow-lg hover:scale-105 transition-all"
+                    >
+                      <Send size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* みんなの意見をみる */}
+                <button
+                  onClick={() => setShowAllOpinions(!showAllOpinions)}
+                  className="w-full py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl font-semibold hover:shadow-lg hover:scale-[1.01] transition-all"
+                >
+                  {showAllOpinions ? '意見を閉じる' : 'みんなの意見をみる'}
+                </button>
+
+                {showAllOpinions && (
+                  <div className="mt-4 bg-gray-50 rounded-xl p-4 max-h-64 overflow-y-auto">
+                    {ideas.filter(idea => idea.questionSection === 'question2').map((idea, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-3 mb-2">
+                        <div className="text-xs text-gray-500 mb-1">参加者の意見</div>
+                        <div className="text-sm text-gray-800">{idea.content}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 解決の方向性セクション */}
+          <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">解決の方向性</h3>
+            <p className="text-sm text-gray-600 mb-4">みんなの意見から導かれた解決アイディアの軸から、あなたが重要だと思うものを選び、理由を記入してください。</p>
+
+            <div className="space-y-3 mb-4">
+              {['方向性A: 地域の交流拠点を増やす', '方向性B: オンラインコミュニティを活性化する', '方向性C: 既存施設の活用を促進する'].map((solution, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedSolution(solution)}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                    selectedSolution === solution
+                      ? 'border-emerald-500 bg-emerald-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-semibold text-gray-900">{solution}</div>
+                </button>
+              ))}
+            </div>
+
+            {selectedSolution && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  選んだ理由を教えてください
+                </label>
+                <textarea
+                  value={solutionReason}
+                  onChange={(e) => setSolutionReason(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all resize-none"
+                  rows="4"
+                  placeholder="なぜこの方向性が重要だと思いますか？"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 終了するボタン */}
+          <button
+            onClick={() => {
+              setStage(STAGES.ROLE_SELECT);
+              setMessagesQ1([]);
+              setMessagesQ2([]);
+              setIdeas([]);
+              setSelectedSolution('');
+              setSolutionReason('');
+            }}
+            className="w-full py-4 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.01] transition-all"
+          >
+            終了する
+          </button>
         </div>
       </div>
     );
