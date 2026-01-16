@@ -121,6 +121,28 @@ function App() {
           id: session.user.id,
           name: session.user.user_metadata.full_name || session.user.email?.split('@')[0] || '名無し'
         });
+
+        // 認証後のリダイレクト処理
+        const redirectStage = localStorage.getItem('auth_redirect_stage');
+        const redirectTopicId = localStorage.getItem('auth_redirect_topic_id');
+        const showMyTopics = localStorage.getItem('show_my_topics_after_auth');
+
+        if (redirectStage) {
+          setStage(redirectStage);
+          if (redirectTopicId) {
+            setSelectedTopicId(redirectTopicId);
+          }
+          // リダイレクト情報をクリア
+          localStorage.removeItem('auth_redirect_stage');
+          localStorage.removeItem('auth_redirect_topic_id');
+        }
+
+        if (showMyTopics === 'true') {
+          setShowOnlyMyTopics(true);
+          localStorage.removeItem('show_my_topics_after_auth');
+          // 上にスクロール
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+        }
       }
       setIsAuthLoading(false);
     });
@@ -133,6 +155,28 @@ function App() {
           id: session.user.id,
           name: session.user.user_metadata.full_name || session.user.email?.split('@')[0] || '名無し'
         });
+
+        // 認証後のリダイレクト処理
+        const redirectStage = localStorage.getItem('auth_redirect_stage');
+        const redirectTopicId = localStorage.getItem('auth_redirect_topic_id');
+        const showMyTopics = localStorage.getItem('show_my_topics_after_auth');
+
+        if (redirectStage) {
+          setStage(redirectStage);
+          if (redirectTopicId) {
+            setSelectedTopicId(redirectTopicId);
+          }
+          // リダイレクト情報をクリア
+          localStorage.removeItem('auth_redirect_stage');
+          localStorage.removeItem('auth_redirect_topic_id');
+        }
+
+        if (showMyTopics === 'true') {
+          setShowOnlyMyTopics(true);
+          localStorage.removeItem('show_my_topics_after_auth');
+          // 上にスクロール
+          setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+        }
       } else {
         setCurrentUser({ id: '', name: '' });
       }
@@ -226,7 +270,7 @@ function App() {
   };
 
   // Googleでログイン
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = async (intentStage = null, topicId = null) => {
     // 開発環境では簡易ログイン
     if (isDevelopment) {
       const devUserName = prompt('開発モード：ユーザー名を入力してください', 'Yoshi Ota');
@@ -246,12 +290,23 @@ function App() {
             }
           }
         });
+        // 認証後の遷移先を処理
+        if (intentStage) {
+          setStage(intentStage);
+          if (topicId) setSelectedTopicId(topicId);
+        }
       }
       return;
     }
 
     // 本番環境はGoogle OAuth
     try {
+      // 認証後に戻るべき画面情報を保存
+      if (intentStage) {
+        localStorage.setItem('auth_redirect_stage', intentStage);
+        if (topicId) localStorage.setItem('auth_redirect_topic_id', topicId);
+      }
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -308,15 +363,19 @@ function App() {
   }, []);
 
   // Google Drive Pickerを開く
-  const openGoogleDrivePicker = () => {
+  const openGoogleDrivePicker = async () => {
     if (!isPickerLoaded || !session) {
       alert('Google Driveにアクセスするには、まずGoogleアカウントでログインしてください。');
       return;
     }
 
-    const accessToken = session.provider_token;
+    // Supabaseセッションからprovider_tokenを取得
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    const accessToken = currentSession?.provider_token;
+
     if (!accessToken) {
       alert('Google認証トークンが見つかりません。再度ログインしてください。');
+      console.error('Session data:', currentSession);
       return;
     }
 
@@ -519,7 +578,12 @@ function App() {
       // 現在のお題情報を取得
       const currentTopic = availableTopics.find(t => t.id === selectedTopicId);
 
-      const response = await fetch('http://localhost:3001/api/ai/question', {
+      // 環境に応じてAPIエンドポイントを切り替え
+      const apiEndpoint = isDevelopment
+        ? 'http://localhost:3001/api/ai/question'
+        : '/api/ai/question';
+
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1016,8 +1080,8 @@ JSONのみを返し、他の説明は不要です。`
             <button
               onClick={async () => {
                 if (!session) {
-                  // 未ログインの場合、Google認証を実行
-                  await signInWithGoogle();
+                  // 未ログインの場合、Google認証を実行して認証後にHOST_SETUPへ
+                  await signInWithGoogle(STAGES.HOST_SETUP);
                 } else {
                   // ログイン済みの場合、ホストセットアップ画面へ
                   setRole(ROLES.HOST);
@@ -1041,7 +1105,8 @@ JSONのみを返し、他の説明は不要です。`
             <button
               onClick={async () => {
                 if (!session) {
-                  // 未ログインの場合、Google認証を実行
+                  // 未ログインの場合、Google認証を実行（認証後にトップページに戻って自分のお題を表示）
+                  localStorage.setItem('show_my_topics_after_auth', 'true');
                   await signInWithGoogle();
                 } else {
                   // ログイン済みの場合、自分のお題のみを表示
